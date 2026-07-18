@@ -76,6 +76,8 @@ def root():
     return RedirectResponse(url="/docs")
 
 
-@app.get("/health", tags=["Sistema"], summary="Estado del servicio")
+# Acepta GET y HEAD: los monitores de uptime (UptimeRobot, etc.) usan HEAD por
+# defecto; sin HEAD respondería 405 y el monitor marcaría el servicio como caído.
+@app.api_route("/health", methods=["GET", "HEAD"], tags=["Sistema"], summary="Estado del servicio")
 def health():
     return {"status": "ok", "twilio": settings.twilio_enabled}
