@@ -1,0 +1,301 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>CitaFácil — Panel de administración</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" />
+<style>
+  :root{
+    --bg:#0d1117; --bg-soft:#161b22; --card:#161b22; --border:#232a34;
+    --text:#e6edf3; --muted:#9aa7b4; --accent:#3b82f6; --accent-2:#22d3ee;
+    --ok:#22c55e; --warn:#f59e0b; --err:#f87171;
+    --grad:linear-gradient(135deg,#3b82f6 0%,#22d3ee 100%);
+    --shadow:0 12px 40px rgba(0,0,0,.35); --radius:16px;
+  }
+  *{margin:0;padding:0;box-sizing:border-box}
+  body{font-family:'Plus Jakarta Sans',system-ui,sans-serif;background:var(--bg);color:var(--text);line-height:1.6;-webkit-font-smoothing:antialiased;min-height:100vh}
+  a{color:inherit;text-decoration:none}
+  .wrap{width:100%;max-width:1100px;margin:0 auto;padding:0 22px}
+  .mono{font-family:'JetBrains Mono',monospace}
+
+  header{position:sticky;top:0;z-index:20;backdrop-filter:blur(12px);background:rgba(13,17,23,.72);border-bottom:1px solid var(--border)}
+  nav{display:flex;align-items:center;justify-content:space-between;height:62px}
+  .brand{font-weight:800;font-size:1.12rem;display:flex;align-items:center;gap:10px}
+  .brand i{color:var(--accent)}
+  .nav-right{display:flex;gap:18px;align-items:center}
+  .nav-right a,.nav-right button{color:var(--muted);font-size:.9rem;font-weight:600;background:none;border:none;cursor:pointer;transition:color .2s;font-family:inherit}
+  .nav-right a:hover,.nav-right button:hover{color:var(--accent-2)}
+
+  main{padding:28px 0 60px}
+  .card{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:24px;box-shadow:var(--shadow);margin-bottom:22px}
+  h2{font-size:1.1rem;display:flex;align-items:center;gap:9px;margin-bottom:16px}
+  h2 i{color:var(--accent)}
+
+  /* login */
+  .login{max-width:420px;margin:60px auto}
+  input,select{width:100%;background:var(--bg);border:1.5px solid var(--border);border-radius:11px;color:var(--text);font:inherit;padding:11px 14px;transition:border-color .2s,box-shadow .2s}
+  input:focus,select:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px rgba(59,130,246,.15)}
+  label{display:block;font-size:.83rem;color:var(--muted);margin:0 0 7px;font-weight:600}
+  .field{margin-bottom:15px}
+  .btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;padding:11px 20px;border-radius:11px;font-weight:700;font-size:.92rem;cursor:pointer;border:none;background:var(--grad);color:#fff;box-shadow:0 8px 22px rgba(59,130,246,.28);transition:transform .15s,opacity .2s;font-family:inherit}
+  .btn:hover{transform:translateY(-2px)} .btn:disabled{opacity:.5;cursor:not-allowed}
+  .btn.ghost{background:var(--bg-soft);color:var(--text);border:1px solid var(--border);box-shadow:none}
+  .btn.sm{padding:7px 12px;font-size:.82rem;border-radius:9px}
+
+  .stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:14px;margin-bottom:22px}
+  .stat{background:var(--card);border:1px solid var(--border);border-radius:14px;padding:18px}
+  .stat .v{font-size:1.8rem;font-weight:800}
+  .stat .k{color:var(--muted);font-size:.85rem;font-weight:600}
+  .stat.acc .v{color:var(--accent-2)} .stat.warn .v{color:var(--warn)} .stat.ok .v{color:var(--ok)}
+
+  .toolbar{display:flex;gap:12px;flex-wrap:wrap;align-items:end;margin-bottom:18px}
+  .toolbar .field{margin:0;min-width:150px}
+
+  table{width:100%;border-collapse:collapse;font-size:.9rem}
+  th,td{text-align:left;padding:11px 12px;border-bottom:1px solid var(--border);vertical-align:middle}
+  th{color:var(--muted);font-size:.78rem;text-transform:uppercase;letter-spacing:.4px}
+  tbody tr:hover{background:var(--bg-soft)}
+  .badge{font-size:.75rem;font-weight:700;padding:3px 10px;border-radius:999px;white-space:nowrap}
+  .b-pending{background:rgba(245,158,11,.14);color:var(--warn)}
+  .b-confirmed{background:rgba(59,130,246,.16);color:var(--accent-2)}
+  .b-cancelled{background:rgba(248,113,113,.14);color:var(--err)}
+  .b-done{background:rgba(34,197,94,.15);color:var(--ok)}
+  .actions{display:flex;gap:6px;flex-wrap:wrap}
+  .ico{width:32px;height:32px;border-radius:8px;border:1px solid var(--border);background:var(--bg-soft);color:var(--muted);cursor:pointer;display:grid;place-items:center;transition:all .16s;font-size:.85rem}
+  .ico:hover{color:#fff} .ico.ok:hover{border-color:var(--ok);color:var(--ok)} .ico.warn:hover{border-color:var(--accent-2);color:var(--accent-2)}
+  .ico.del:hover{border-color:var(--err);color:var(--err)}
+  .empty{color:var(--muted);padding:22px 0;text-align:center}
+
+  .svc-row{display:flex;align-items:center;justify-content:space-between;gap:12px;background:var(--bg-soft);border:1px solid var(--border);border-radius:11px;padding:12px 15px;margin-bottom:9px}
+  .svc-row .info{display:flex;gap:14px;align-items:center;flex-wrap:wrap}
+  .svc-row .price{color:var(--accent-2);font-family:'JetBrains Mono',monospace;font-weight:700}
+  .svc-row .inactive{opacity:.5}
+  .add-svc{display:grid;grid-template-columns:2fr 1fr 1fr auto;gap:10px;align-items:end;margin-top:14px}
+  .toast{position:fixed;bottom:22px;left:50%;transform:translateX(-50%);background:var(--card);border:1px solid var(--border);border-radius:11px;padding:12px 18px;box-shadow:var(--shadow);font-size:.9rem;display:none;z-index:50}
+  .toast.err{border-color:rgba(248,113,113,.5)} .toast.ok{border-color:rgba(34,197,94,.5)}
+  .hide{display:none!important}
+  @media(max-width:680px){ .add-svc{grid-template-columns:1fr 1fr}; table{font-size:.82rem}; th:nth-child(3),td:nth-child(3){display:none} }
+</style>
+</head>
+<body>
+<header>
+  <div class="wrap">
+    <nav>
+      <div class="brand"><i class="fa-solid fa-calendar-check"></i> CitaFácil <span style="color:var(--muted);font-weight:600;font-size:.85rem">· Admin</span></div>
+      <div class="nav-right">
+        <a href="index.html"><i class="fa-solid fa-arrow-left"></i> Ver página de reservas</a>
+        <button id="logoutBtn" class="hide" onclick="logout()"><i class="fa-solid fa-right-from-bracket"></i> Salir</button>
+      </div>
+    </nav>
+  </div>
+</header>
+
+<main>
+  <div class="wrap">
+
+    <!-- LOGIN -->
+    <div id="loginView" class="card login">
+      <h2><i class="fa-solid fa-lock"></i> Acceso administrador</h2>
+      <div class="field"><label for="tokenInput">Token de administrador</label><input id="tokenInput" type="password" placeholder="Tu ADMIN_TOKEN" /></div>
+      <button class="btn" id="loginBtn" style="width:100%"><i class="fa-solid fa-unlock"></i> Entrar</button>
+      <div id="loginMsg" style="color:var(--err);font-size:.85rem;margin-top:12px;display:none"></div>
+    </div>
+
+    <!-- DASHBOARD -->
+    <div id="dashView" class="hide">
+      <div class="stats" id="stats"></div>
+
+      <div class="card">
+        <h2><i class="fa-solid fa-list-check"></i> Reservas</h2>
+        <div class="toolbar">
+          <div class="field"><label for="fDate">Fecha</label><input type="date" id="fDate" /></div>
+          <div class="field"><label for="fStatus">Estado</label>
+            <select id="fStatus">
+              <option value="">Todos</option>
+              <option value="pending">Pendientes</option>
+              <option value="confirmed">Confirmadas</option>
+              <option value="done">Realizadas</option>
+              <option value="cancelled">Canceladas</option>
+            </select>
+          </div>
+          <button class="btn ghost sm" onclick="loadAppointments()"><i class="fa-solid fa-rotate"></i> Actualizar</button>
+          <button class="btn ghost sm" onclick="clearFilters()">Limpiar</button>
+          <button class="btn sm" id="remindBtn" onclick="runReminders()"><i class="fa-brands fa-whatsapp"></i> Enviar recordatorios</button>
+        </div>
+        <div style="overflow-x:auto">
+          <table>
+            <thead><tr><th>Fecha y hora</th><th>Cliente</th><th>Teléfono</th><th>Servicio</th><th>Estado</th><th>Acciones</th></tr></thead>
+            <tbody id="apptBody"><tr><td colspan="6" class="empty">Cargando…</td></tr></tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2><i class="fa-solid fa-scissors"></i> Servicios</h2>
+        <div id="svcList"></div>
+        <div class="add-svc">
+          <div class="field" style="margin:0"><label>Nombre</label><input id="nsName" placeholder="Ej: Corte de pelo" /></div>
+          <div class="field" style="margin:0"><label>Duración (min)</label><input id="nsDur" type="number" value="30" min="5" step="5" /></div>
+          <div class="field" style="margin:0"><label>Precio (CLP)</label><input id="nsPrice" type="number" value="8000" min="0" step="500" /></div>
+          <button class="btn sm" onclick="addService()"><i class="fa-solid fa-plus"></i> Agregar</button>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</main>
+<div class="toast" id="toast"></div>
+
+<script>
+  /* ====== CONFIG ====== */
+  const DEFAULT_API = "http://localhost:8000";
+  const qp = new URLSearchParams(location.search).get("api");
+  if (qp) localStorage.setItem("citafacil_api", qp);
+  const API = (localStorage.getItem("citafacil_api") || DEFAULT_API).replace(/\/$/, "");
+
+  const $ = id => document.getElementById(id);
+  const money = n => "$" + (n||0).toLocaleString("es-CL");
+  let TOKEN = localStorage.getItem("citafacil_token") || "";
+
+  function toast(msg, kind){ const t=$("toast"); t.textContent=msg; t.className="toast "+(kind||""); t.style.display="block"; setTimeout(()=>t.style.display="none", 2800); }
+
+  async function api(path, opts){
+    opts = opts || {};
+    opts.headers = Object.assign({"X-Admin-Token": TOKEN}, opts.headers||{});
+    const r = await fetch(API + path, opts);
+    if(r.status===401 || r.status===422 && path.startsWith("/api/admin")){ /* handled by caller */ }
+    if(!r.ok){ let d; try{d=await r.json()}catch(e){}; const err=new Error((d&&d.detail)||("Error "+r.status)); err.status=r.status; throw err; }
+    return r.status===204 ? null : r.json();
+  }
+
+  /* ====== LOGIN ====== */
+  $("loginBtn").addEventListener("click", doLogin);
+  $("tokenInput").addEventListener("keydown", e=>{ if(e.key==="Enter") doLogin(); });
+
+  async function doLogin(){
+    const t = $("tokenInput").value.trim();
+    if(!t){ return; }
+    TOKEN = t;
+    try{
+      await api("/api/admin/stats");
+      localStorage.setItem("citafacil_token", TOKEN);
+      showDash();
+    }catch(e){
+      $("loginMsg").style.display="block";
+      $("loginMsg").textContent = e.status===401 ? "Token incorrecto." : ("No se pudo conectar: "+e.message+" (API: "+API+")");
+    }
+  }
+
+  function logout(){ localStorage.removeItem("citafacil_token"); TOKEN=""; location.reload(); }
+
+  function showDash(){
+    $("loginView").classList.add("hide");
+    $("dashView").classList.remove("hide");
+    $("logoutBtn").classList.remove("hide");
+    refreshAll();
+  }
+
+  /* ====== DATA ====== */
+  async function refreshAll(){ await Promise.all([loadStats(), loadAppointments(), loadServices()]); }
+
+  async function loadStats(){
+    try{
+      const s = await api("/api/admin/stats");
+      $("stats").innerHTML = `
+        <div class="stat"><div class="v">${s.total}</div><div class="k">Total reservas</div></div>
+        <div class="stat warn"><div class="v">${s.pending}</div><div class="k">Pendientes</div></div>
+        <div class="stat acc"><div class="v">${s.confirmed}</div><div class="k">Confirmadas</div></div>
+        <div class="stat ok"><div class="v">${s.upcoming}</div><div class="k">Próximas</div></div>`;
+    }catch(e){ if(e.status===401) logout(); }
+  }
+
+  const STLABEL = {pending:"Pendiente",confirmed:"Confirmada",cancelled:"Cancelada",done:"Realizada"};
+  function fmtDT(iso){ const d=new Date(iso); return d.toLocaleDateString("es-CL",{weekday:"short",day:"2-digit",month:"2-digit"})+" · "+d.toLocaleTimeString("es-CL",{hour:"2-digit",minute:"2-digit"}); }
+
+  async function loadAppointments(){
+    const body=$("apptBody"); body.innerHTML='<tr><td colspan="6" class="empty">Cargando…</td></tr>';
+    const params=[]; if($("fStatus").value) params.push("status="+$("fStatus").value); if($("fDate").value) params.push("date="+$("fDate").value);
+    try{
+      const list = await api("/api/admin/appointments" + (params.length?("?"+params.join("&")):""));
+      if(!list.length){ body.innerHTML='<tr><td colspan="6" class="empty">No hay reservas con esos filtros.</td></tr>'; return; }
+      body.innerHTML="";
+      list.forEach(a=>{
+        const tr=document.createElement("tr");
+        const svc = a.service ? a.service.name : ("#"+a.service_id);
+        tr.innerHTML = `<td class="mono">${fmtDT(a.start_at)}</td><td>${a.customer_name}</td>
+          <td class="mono">${a.customer_phone}</td><td>${svc}</td>
+          <td><span class="badge b-${a.status}">${STLABEL[a.status]||a.status}</span></td>
+          <td><div class="actions">
+            <button class="ico ok" title="Confirmar" onclick="setStatus(${a.id},'confirmed')"><i class="fa-solid fa-check"></i></button>
+            <button class="ico ok" title="Marcar realizada" onclick="setStatus(${a.id},'done')"><i class="fa-solid fa-flag-checkered"></i></button>
+            <button class="ico warn" title="Cancelar" onclick="setStatus(${a.id},'cancelled')"><i class="fa-solid fa-ban"></i></button>
+            <button class="ico del" title="Eliminar" onclick="delAppt(${a.id})"><i class="fa-solid fa-trash"></i></button>
+          </div></td>`;
+        body.appendChild(tr);
+      });
+    }catch(e){ if(e.status===401){logout();return;} body.innerHTML='<tr><td colspan="6" class="empty">Error: '+e.message+'</td></tr>'; }
+  }
+
+  async function setStatus(id, status){
+    try{ await api(`/api/admin/appointments/${id}`,{method:"PATCH",headers:{"Content-Type":"application/json"},body:JSON.stringify({status})});
+      toast("Estado actualizado","ok"); refreshAll();
+    }catch(e){ toast(e.message,"err"); }
+  }
+  async function delAppt(id){
+    if(!confirm("¿Eliminar esta reserva?")) return;
+    try{ await api(`/api/admin/appointments/${id}`,{method:"DELETE"}); toast("Reserva eliminada","ok"); refreshAll(); }
+    catch(e){ toast(e.message,"err"); }
+  }
+
+  async function loadServices(){
+    const box=$("svcList");
+    try{
+      const list = await api("/api/admin/services");
+      if(!list.length){ box.innerHTML='<div class="empty">Aún no hay servicios.</div>'; return; }
+      box.innerHTML="";
+      list.forEach(s=>{
+        const row=document.createElement("div"); row.className="svc-row"+(s.active?"":" inactive");
+        row.innerHTML=`<div class="info"><b>${s.name}</b><span style="color:var(--muted)"><i class="fa-regular fa-clock"></i> ${s.duration_min} min</span><span class="price">${money(s.price)}</span>${s.active?"":'<span class="badge b-cancelled">inactivo</span>'}</div>
+          <div class="actions">
+            <button class="ico warn" title="${s.active?'Desactivar':'Activar'}" onclick="toggleSvc(${s.id},${!s.active})"><i class="fa-solid fa-power-off"></i></button>
+            <button class="ico del" title="Eliminar" onclick="delSvc(${s.id})"><i class="fa-solid fa-trash"></i></button>
+          </div>`;
+        box.appendChild(row);
+      });
+    }catch(e){ if(e.status===401){logout();return;} box.innerHTML='<div class="empty">Error: '+e.message+'</div>'; }
+  }
+  async function toggleSvc(id, active){
+    try{ await api(`/api/admin/services/${id}`,{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify({active})}); loadServices(); }
+    catch(e){ toast(e.message,"err"); }
+  }
+  async function delSvc(id){
+    if(!confirm("¿Eliminar este servicio?")) return;
+    try{ await api(`/api/admin/services/${id}`,{method:"DELETE"}); toast("Servicio eliminado","ok"); loadServices(); }
+    catch(e){ toast(e.message,"err"); }
+  }
+  async function addService(){
+    const name=$("nsName").value.trim(), duration_min=parseInt($("nsDur").value), price=parseInt($("nsPrice").value);
+    if(name.length<2){ toast("Escribe un nombre válido","err"); return; }
+    try{ await api("/api/admin/services",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({name,duration_min,price})});
+      $("nsName").value=""; toast("Servicio agregado","ok"); loadServices();
+    }catch(e){ toast(e.message,"err"); }
+  }
+
+  async function runReminders(){
+    const b=$("remindBtn"); b.disabled=true; const old=b.innerHTML; b.innerHTML='<i class="fa-solid fa-spinner fa-spin"></i> Enviando…';
+    try{ const r=await api("/api/admin/reminders/run",{method:"POST"}); toast(`Recordatorios: ${r.enviados} enviados de ${r.candidatas}`,"ok"); loadStats(); }
+    catch(e){ toast(e.message,"err"); }
+    finally{ b.disabled=false; b.innerHTML=old; }
+  }
+
+  function clearFilters(){ $("fStatus").value=""; $("fDate").value=""; loadAppointments(); }
+
+  /* init */
+  if(TOKEN){ showDash(); }
+</script>
+</body>
+</html>
