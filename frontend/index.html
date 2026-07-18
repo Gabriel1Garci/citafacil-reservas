@@ -172,7 +172,7 @@
   /* ====== CONFIG ====== */
   // Cambia esta URL por la de tu backend en producción (Render).
   // También puedes pasar ?api=https://tu-api.onrender.com en la URL.
-  const DEFAULT_API = "http://localhost:8000";
+  const DEFAULT_API = "https://citafacil-api.onrender.com";
   const qp = new URLSearchParams(location.search).get("api");
   if (qp) localStorage.setItem("citafacil_api", qp);
   const API = (localStorage.getItem("citafacil_api") || DEFAULT_API).replace(/\/$/, "");
