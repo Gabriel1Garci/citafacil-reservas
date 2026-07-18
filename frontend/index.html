@@ -73,11 +73,12 @@
     font-family:'JetBrains Mono',monospace;font-size:.9rem;transition:all .16s}
   .slot:hover{border-color:var(--accent);color:var(--accent-2)}
   .slot.sel{background:var(--grad);border-color:transparent;color:#fff}
-  .empty{color:var(--muted);font-size:.9rem;padding:10px 0}
+  .empty{color:var(--muted);font-size:.9rem;padding:10px 0;display:flex;align-items:center;gap:9px}
 
   .btn{display:inline-flex;align-items:center;gap:9px;padding:13px 24px;border-radius:12px;font-weight:700;font-size:.98rem;
     cursor:pointer;border:none;background:var(--grad);color:#fff;box-shadow:0 8px 22px rgba(59,130,246,.3);transition:transform .15s,opacity .2s}
   .btn:hover{transform:translateY(-2px)} .btn:disabled{opacity:.5;cursor:not-allowed;transform:none}
+  .btn.ghost{background:transparent;border:1.5px solid var(--border);box-shadow:none;color:var(--text)}
   .summary{background:var(--bg-soft);border:1px solid var(--border);border-radius:12px;padding:14px 16px;margin-bottom:18px;font-size:.92rem}
   .summary b{color:var(--accent-2)}
 
@@ -91,7 +92,7 @@
 
   footer{border-top:1px solid var(--border);padding:22px 0;text-align:center;color:var(--muted);font-size:.85rem}
   footer a{color:var(--accent-2);font-weight:600;cursor:pointer}
-  .spin{display:inline-block;width:16px;height:16px;border:2px solid rgba(255,255,255,.3);border-top-color:#fff;border-radius:50%;animation:sp .7s linear infinite}
+  .spin{display:inline-block;width:16px;height:16px;border:2px solid rgba(255,255,255,.3);border-top-color:#fff;border-radius:50%;animation:sp .7s linear infinite;flex:0 0 auto}
   @keyframes sp{to{transform:rotate(360deg)}}
 </style>
 </head>
@@ -126,7 +127,7 @@
     <div class="card" id="cardSvc">
       <h2><i class="fa-solid fa-scissors"></i> Elige un servicio</h2>
       <p class="hint">Selecciona lo que necesitas.</p>
-      <div class="svc-grid" id="svcGrid"><div class="empty">Cargando servicios…</div></div>
+      <div class="svc-grid" id="svcGrid"><div class="empty"><span class="spin"></span> Cargando servicios…</div></div>
     </div>
 
     <!-- Paso 2: Día y hora -->
@@ -184,10 +185,16 @@
   }
 
   const money = n => "$" + (n||0).toLocaleString("es-CL");
-  async function api(path, opts){
-    const r = await fetch(API + path, opts);
-    if(!r.ok){ let d; try{d=await r.json()}catch(e){}; throw new Error((d&&d.detail)|| ("Error "+r.status)); }
-    return r.status===204 ? null : r.json();
+
+  // fetch con timeout opcional (AbortController) para no colgarse en un arranque en frío.
+  async function api(path, opts, timeoutMs){
+    const ctrl = new AbortController();
+    const t = timeoutMs ? setTimeout(()=>ctrl.abort(), timeoutMs) : null;
+    try{
+      const r = await fetch(API + path, Object.assign({}, opts||{}, {signal: ctrl.signal}));
+      if(!r.ok){ let d; try{d=await r.json()}catch(e){}; throw new Error((d&&d.detail) || ("Error "+r.status)); }
+      return r.status===204 ? null : r.json();
+    } finally { if(t) clearTimeout(t); }
   }
 
   const state = { service:null, date:null, time:null, services:[] };
@@ -201,22 +208,50 @@
     $("cardWho").classList.toggle("disabled", n<3);
   }
 
+  const sleep = ms => new Promise(r=>setTimeout(r, ms));
+
   async function init(){
-    try{
-      const cfg = await api("/api/config");
-      $("brandName").textContent = cfg.business_name;
-      document.title = cfg.business_name + " — Reserva tu hora";
-      window.__cfg = cfg;
-    }catch(e){ /* usa defaults */ }
-    try{
-      state.services = await api("/api/services");
-      renderServices();
-    }catch(e){
-      $("svcGrid").innerHTML = '<div class="empty">No se pudo conectar con el servidor. Revisa la API ('+API+').</div>';
+    const grid = $("svcGrid");
+    grid.innerHTML = '<div class="empty"><span class="spin"></span> Cargando servicios…</div>';
+
+    // El plan gratuito de Render "duerme" el servidor: la primera carga puede tardar.
+    // Avisamos si tarda, y reintentamos por si responde 502/503 mientras despierta.
+    const slowTimer = setTimeout(()=>{
+      grid.innerHTML = '<div class="empty"><span class="spin"></span> Despertando el servidor… la primera carga puede tardar hasta ~50 s. Gracias por la paciencia.</div>';
+    }, 3500);
+
+    let ok = false;
+    for(let attempt=1; attempt<=8 && !ok; attempt++){
+      try{
+        state.services = await api("/api/services", null, 65000);
+        ok = true;
+      }catch(e){
+        if(attempt < 8) await sleep(2500);
+      }
     }
+    clearTimeout(slowTimer);
+
+    if(!ok){
+      grid.innerHTML = '<div class="empty">No pudimos conectar con el servidor. Reintenta en un minuto '
+        + '<a onclick="location.reload()" style="color:var(--accent-2);cursor:pointer;font-weight:600">(recargar)</a> '
+        + 'o revisa la API (' + API + ').</div>';
+      return;
+    }
+
+    renderServices();
+
+    // Config del negocio (no crítica: si falla, seguimos con los valores por defecto).
+    try{
+      const cfg = await api("/api/config", null, 15000);
+      if(cfg && cfg.business_name){
+        $("brandName").textContent = cfg.business_name;
+        document.title = cfg.business_name + " — Reserva tu hora";
+        window.__cfg = cfg;
+      }
+    }catch(e){ /* usa defaults */ }
+
     // fecha mínima = hoy
-    const d = new Date(); const iso = d.toISOString().slice(0,10);
-    $("dateInput").min = iso;
+    $("dateInput").min = new Date().toISOString().slice(0,10);
   }
 
   function renderServices(){
@@ -244,19 +279,41 @@
 
   $("dateInput").addEventListener("change", loadSlots);
 
+  // Token incremental: solo la última petición pinta el resultado (evita que una
+  // respuesta vieja pise a la nueva cuando se teclea la fecha dígito a dígito).
+  let slotsReq = 0;
+
   async function loadSlots(){
-    if(!state.service || !$("dateInput").value) return;
-    state.date = $("dateInput").value; state.time=null;
-    const box = $("slots"); box.innerHTML = '<div class="empty">Buscando horarios…</div>';
+    if(!state.service) return;
+    const date = $("dateInput").value;
+    // Ignorar fechas incompletas/ inválidas o anteriores a hoy (al teclear se generan
+    // años intermedios como 0002, 0020… que no deben consultarse).
+    if(!/^\d{4}-\d{2}-\d{2}$/.test(date)) return;
+    const min = $("dateInput").min;
+    const box = $("slots");
+    if(min && date < min){
+      box.innerHTML = '<div class="empty">Elige una fecha desde hoy en adelante.</div>';
+      return;
+    }
+
+    state.date = date; state.time = null;
+    const myReq = ++slotsReq;
+    box.innerHTML = '<div class="empty"><span class="spin"></span> Buscando horarios…</div>';
     try{
-      const list = await api(`/api/availability?service_id=${state.service.id}&date=${state.date}`);
-      if(!list.length){ box.innerHTML='<div class="empty">No hay horarios ese día. Prueba otra fecha.</div>'; return; }
+      const list = await api(`/api/availability?service_id=${state.service.id}&date=${date}`, null, 65000);
+      if(myReq !== slotsReq) return; // llegó tarde: hay una petición más nueva
+      if(!Array.isArray(list) || !list.length){
+        box.innerHTML='<div class="empty">No hay horarios ese día. Prueba otra fecha.</div>'; return;
+      }
       box.innerHTML="";
       list.forEach(t=>{
         const b=document.createElement("div"); b.className="slot"; b.textContent=t;
         b.onclick=()=>selectSlot(t,b); box.appendChild(b);
       });
-    }catch(e){ box.innerHTML='<div class="empty">Error cargando horarios.</div>'; }
+    }catch(e){
+      if(myReq !== slotsReq) return;
+      box.innerHTML='<div class="empty">Error cargando horarios. Prueba de nuevo.</div>';
+    }
   }
 
   function selectSlot(t, b){
@@ -279,7 +336,7 @@
     try{
       const payload={customer_name:name, customer_phone:phone, service_id:state.service.id,
         start_at:`${state.date}T${state.time}:00`, notes:$("notes").value.trim()};
-      await api("/api/appointments",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(payload)});
+      await api("/api/appointments",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(payload)}, 65000);
       const d=new Date(state.date+"T"+state.time);
       const fecha=d.toLocaleDateString("es-CL",{weekday:"long",day:"2-digit",month:"long"});
       $("doneMsg").innerHTML=`Te esperamos el <b>${fecha}</b> a las <b>${state.time}</b>.<br>Te enviamos la confirmación por WhatsApp a ${phone}.`;
