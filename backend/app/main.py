@@ -13,7 +13,7 @@ from . import __version__
 from .config import settings
 from .database import Base, engine
 from .reminders import run_reminders_job
-from .routers import admin, public
+from .routers import admin, public, scores
 
 logging.basicConfig(
     level=logging.INFO,
@@ -53,7 +53,8 @@ app = FastAPI(
     title="CitaFácil API",
     description=(
         "API de reservas para pequeños negocios: servicios, disponibilidad, "
-        "citas y recordatorios por WhatsApp. Hecho por Giancarlos Alfaro."
+        "citas y recordatorios por WhatsApp. Incluye el ranking mundial del "
+        "juego ÚLTIMA RONDA 3D. Hecho por Giancarlos Alfaro."
     ),
     version=__version__,
     lifespan=lifespan,
@@ -69,6 +70,7 @@ app.add_middleware(
 
 app.include_router(public.router)
 app.include_router(admin.router)
+app.include_router(scores.router)
 
 
 @app.get("/", include_in_schema=False)
