@@ -7,7 +7,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
 from .. import crud, schemas
-from ..availability import generate_slots, is_slot_free
+from ..availability import generate_slots, is_slot_free, month_calendar
 from ..config import settings
 from ..database import get_db
 from ..notifications import confirmation_message, send_whatsapp
@@ -43,6 +43,19 @@ def get_availability(
     if not service or not service.active:
         raise HTTPException(status_code=404, detail="Servicio no encontrado.")
     return generate_slots(db, service, day)
+
+
+@router.get("/calendar", response_model=schemas.CalendarOut, summary="Calendario mensual")
+def get_calendar(
+    service_id: int = Query(..., description="ID del servicio"),
+    month: str = Query(..., pattern=r"^\d{4}-(0[1-9]|1[0-2])$", description="Mes YYYY-MM"),
+    db: Session = Depends(get_db),
+):
+    service = crud.get_service(db, service_id)
+    if not service or not service.active:
+        raise HTTPException(status_code=404, detail="Servicio no encontrado.")
+    year, mon = int(month[:4]), int(month[5:])
+    return schemas.CalendarOut(month=month, days=month_calendar(db, service, year, mon))
 
 
 @router.post(
