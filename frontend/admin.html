@@ -168,6 +168,7 @@
           </div>
           <button class="btn ghost sm" onclick="loadAppointments()"><i class="fa-solid fa-rotate"></i> Actualizar</button>
           <button class="btn ghost sm" onclick="clearFilters()">Limpiar</button>
+          <button class="btn ghost sm" id="exportBtn" onclick="exportCsv()"><i class="fa-solid fa-file-csv"></i> Exportar CSV</button>
           <button class="btn sm" id="remindBtn" onclick="runReminders()"><i class="fa-brands fa-whatsapp"></i> Enviar recordatorios</button>
         </div>
         <div style="overflow-x:auto">
@@ -312,6 +313,28 @@
   }
   $("fcDays").addEventListener("change", loadForecast);
 
+  /* ====== EXPORTAR CSV (US5) ====== */
+  // Se usa fetch (y no un enlace) porque la API exige la cabecera X-Admin-Token.
+  async function exportCsv(){
+    const q = new URLSearchParams();
+    if($("fDate").value) q.set("date", $("fDate").value);
+    if($("fStatus").value) q.set("status", $("fStatus").value);
+    try{
+      const r = await fetch(API + "/api/admin/appointments/export.csv" + (q.toString() ? "?" + q : ""), {headers:{"X-Admin-Token": TOKEN}});
+      if(!r.ok) throw Object.assign(new Error("Error " + r.status), {status: r.status});
+      const blob = await r.blob();
+      const m = /filename="([^"]+)"/.exec(r.headers.get("Content-Disposition") || "");
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(blob); a.download = m ? m[1] : "reservas.csv";
+      document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(()=>URL.revokeObjectURL(a.href), 1000);
+      toast("CSV exportado", "ok");
+    }catch(e){
+      if(e.status===401){ logout(); return; }
+      toast("No se pudo exportar: " + e.message, "err");
+    }
+  }
+
   async function loadStats(){
     try{
       const s = await api("/api/admin/stats");
@@ -401,6 +424,10 @@
     catch(e){ toast(e.message,"err"); }
     finally{ b.disabled=false; b.innerHTML=old; }
   }
+
+  // Los filtros se aplican al cambiarlos, así la tabla y el CSV exportado siempre coinciden.
+  $("fStatus").addEventListener("change", loadAppointments);
+  $("fDate").addEventListener("change", loadAppointments);
 
   function clearFilters(){ $("fStatus").value=""; $("fDate").value=""; loadAppointments(); }
 
