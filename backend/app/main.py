@@ -67,6 +67,7 @@ app.add_middleware(
     allow_credentials=False,  # usamos token por cabecera, no cookies
     allow_methods=["*"],
     allow_headers=["*"],
+    expose_headers=["Content-Disposition"],  # para leer el nombre del CSV exportado
 )
 
 app.include_router(public.router)
