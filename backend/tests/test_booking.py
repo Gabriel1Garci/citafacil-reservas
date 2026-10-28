@@ -1,9 +1,11 @@
 """Tests de la lógica de reservas y de la API."""
 import os
+import tempfile
 
 # Usar una base de datos de prueba aislada ANTES de importar la app.
-# (Se usa /tmp para evitar límites de E/S de sistemas de archivos de red.)
-os.environ["DATABASE_URL"] = "sqlite:////tmp/citafacil_test.db"
+# (Directorio temporal del sistema: funciona en Windows, Linux y macOS.)
+_TEST_DB = os.path.join(tempfile.gettempdir(), "citafacil_test.db")
+os.environ["DATABASE_URL"] = "sqlite:///" + _TEST_DB.replace("\\", "/")
 os.environ["ADMIN_TOKEN"] = "test-token"
 
 from datetime import timedelta  # noqa: E402
