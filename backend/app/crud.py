@@ -1,6 +1,7 @@
 """Operaciones de base de datos (Create/Read/Update/Delete)."""
 from __future__ import annotations
 
+import secrets
 from datetime import date, datetime, time, timedelta
 from typing import Optional
 
@@ -43,6 +44,22 @@ def delete_service(db: Session, service: models.Service) -> None:
 
 
 # ---------- Citas ----------
+# Sin caracteres ambiguos (0/O, 1/I/L) para que el código sea fácil de dictar.
+_CODE_ALPHABET = "ABCDEFGHJKMNPQRSTUVWXYZ23456789"
+
+
+def new_cancel_code(db: Session, length: int = 8) -> str:
+    """Código aleatorio criptográficamente seguro y único."""
+    while True:
+        code = "".join(secrets.choice(_CODE_ALPHABET) for _ in range(length))
+        if not db.query(models.Appointment).filter_by(cancel_code=code).first():
+            return code
+
+
+def get_by_cancel_code(db: Session, code: str) -> Optional[models.Appointment]:
+    return db.query(models.Appointment).filter(models.Appointment.cancel_code == code).first()
+
+
 def create_appointment(
     db: Session, data: schemas.AppointmentCreate, service: models.Service, end_at: datetime
 ) -> models.Appointment:
@@ -54,6 +71,7 @@ def create_appointment(
         end_at=end_at,
         notes=(data.notes or "").strip(),
         status=models.STATUS_PENDING,
+        cancel_code=new_cancel_code(db),
     )
     db.add(obj)
     db.commit()

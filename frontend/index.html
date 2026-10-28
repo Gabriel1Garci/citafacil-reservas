@@ -91,6 +91,11 @@
   .cal-day.blank{visibility:hidden}
   .cal-legend{display:flex;gap:14px;flex-wrap:wrap;margin:12px 0 18px;font-size:.8rem;color:var(--muted)}
   .cal-legend i{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:6px;vertical-align:middle}
+  .code-box{display:inline-block;margin:6px 0 16px;padding:10px 18px;border:1.5px dashed var(--accent);border-radius:12px;
+    font-family:'JetBrains Mono',monospace;font-size:1.4rem;letter-spacing:.18em;color:var(--accent-2);user-select:all}
+  .cancel-link{color:var(--muted);font-size:.9rem;font-weight:600;cursor:pointer;background:none;border:none;font-family:inherit}
+  .cancel-link:hover{color:var(--accent-2)}
+  .msg.ok{display:block;background:rgba(34,197,94,.12);border:1px solid rgba(34,197,94,.3);color:#bbf7d0}
   .empty{color:var(--muted);font-size:.9rem;padding:10px 0;display:flex;align-items:center;gap:9px}
 
   .btn{display:inline-flex;align-items:center;gap:9px;padding:13px 24px;border-radius:12px;font-weight:700;font-size:.98rem;
@@ -119,7 +124,10 @@
   <div class="wrap">
     <nav>
       <div class="brand"><i class="fa-solid fa-calendar-check"></i><span id="brandName">CitaFácil</span></div>
-      <a class="admin-link" href="admin.html"><i class="fa-solid fa-lock"></i> Panel admin</a>
+      <span style="display:flex;gap:18px;align-items:center">
+        <button class="cancel-link" id="openCancel"><i class="fa-solid fa-ban"></i> Cancelar mi reserva</button>
+        <a class="admin-link" href="admin.html"><i class="fa-solid fa-lock"></i> Panel admin</a>
+      </span>
     </nav>
   </div>
 </header>
@@ -178,12 +186,26 @@
       <div class="msg" id="formMsg"></div>
     </div>
 
+    <!-- Cancelar reserva (US4) -->
+    <div class="card" id="cardCancel" style="display:none">
+      <h2><i class="fa-solid fa-ban"></i> Cancelar mi reserva</h2>
+      <p class="hint">Ingresa el código que recibiste al reservar para liberar tu horario.</p>
+      <div class="field"><label for="cancelCode">Código de cancelación</label>
+        <input id="cancelCode" placeholder="Ej: K7M2QX9P" maxlength="12" autocomplete="off" style="text-transform:uppercase;letter-spacing:.12em" /></div>
+      <button class="btn" id="cancelBtn"><i class="fa-solid fa-ban"></i> Cancelar reserva</button>
+      <button class="btn ghost" id="closeCancel" type="button">Volver</button>
+      <div class="msg" id="cancelMsg"></div>
+    </div>
+
     <!-- Resultado -->
     <div class="card" id="cardDone" style="display:none">
       <div class="result ok">
         <div class="ic"><i class="fa-solid fa-circle-check"></i></div>
         <h3>¡Reserva confirmada!</h3>
         <p id="doneMsg"></p>
+        <div>Tu código de cancelación</div>
+        <div class="code-box" id="doneCode"></div>
+        <p style="margin-top:-6px;font-size:.85rem">Guárdalo: lo necesitarás si no puedes asistir.</p>
         <button class="btn" onclick="location.reload()"><i class="fa-solid fa-plus"></i> Hacer otra reserva</button>
       </div>
     </div>
@@ -413,7 +435,8 @@
     try{
       const payload={customer_name:name, customer_phone:phone, service_id:state.service.id,
         start_at:`${state.date}T${state.time}:00`, notes:$("notes").value.trim()};
-      await api("/api/appointments",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(payload)}, 65000);
+      const appt = await api("/api/appointments",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(payload)}, 65000);
+      $("doneCode").textContent = appt.cancel_code || "";
       const d=new Date(state.date+"T"+state.time);
       const fecha=d.toLocaleDateString("es-CL",{weekday:"long",day:"2-digit",month:"long"});
       $("doneMsg").innerHTML=`Te esperamos el <b>${fecha}</b> a las <b>${state.time}</b>.<br>Te enviamos la confirmación por WhatsApp a ${phone}.`;
@@ -426,6 +449,29 @@
       msg.textContent = e.message==="Error 409" ? "Ese horario ya fue tomado. Elige otro." : e.message;
       loadCalendar(); loadSlots();
     }finally{ btn.disabled=false; btn.innerHTML='<i class="fa-solid fa-check"></i> Confirmar reserva'; }
+  });
+
+  /* ====== Cancelar reserva (US4) ====== */
+  function toggleCancel(show){
+    $("cardCancel").style.display = show ? "block" : "none";
+    ["cardSvc","cardWhen","cardWho"].forEach(id=>$(id).style.display = show ? "none" : "");
+    document.querySelector(".steps").style.display = show ? "none" : "";
+    if(show) $("cancelCode").focus();
+  }
+  $("openCancel").onclick = ()=>toggleCancel(true);
+  $("closeCancel").onclick = ()=>toggleCancel(false);
+  $("cancelBtn").addEventListener("click", async ()=>{
+    const code = $("cancelCode").value.trim();
+    const msg = $("cancelMsg"); msg.className = "msg";
+    if(code.length < 4){ msg.className="msg err"; msg.textContent="Ingresa tu código de cancelación."; return; }
+    const btn = $("cancelBtn"); btn.disabled = true;
+    try{
+      await api("/api/appointments/cancel",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({code})}, 65000);
+      msg.className = "msg ok"; msg.textContent = "Tu reserva fue cancelada y el horario quedó liberado.";
+      $("cancelCode").value = "";
+    }catch(e){
+      msg.className = "msg err"; msg.textContent = e.message;
+    }finally{ btn.disabled = false; }
   });
 
   init();
