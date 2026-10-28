@@ -6,8 +6,9 @@ from contextlib import asynccontextmanager
 
 from apscheduler.schedulers.background import BackgroundScheduler
 from fastapi import FastAPI
+from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import RedirectResponse
+from fastapi.responses import JSONResponse, RedirectResponse
 
 from . import __version__
 from .config import settings
@@ -72,6 +73,17 @@ app.include_router(public.router)
 app.include_router(customers.router)
 app.include_router(admin.router)
 app.include_router(scores.router)
+
+
+@app.exception_handler(RequestValidationError)
+async def validation_error_handler(request, exc: RequestValidationError):
+    """Respuesta 422 SIN el valor recibido (`input`/`ctx`).
+
+    Por defecto FastAPI reenvía lo que envió el cliente; en errores de todo el modelo
+    eso incluiría el número de tarjeta y el CVV en claro.
+    """
+    safe = [{k: v for k, v in err.items() if k not in ("input", "ctx", "url")} for err in exc.errors()]
+    return JSONResponse(status_code=422, content={"detail": safe})
 
 
 @app.get("/", include_in_schema=False)

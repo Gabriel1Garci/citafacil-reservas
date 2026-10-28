@@ -133,3 +133,15 @@ def test_full_card_number_and_cvv_are_never_stored():
     assert not any("4242424242424242" in v.replace(" ", "") for v in values)
     assert "123" not in values  # el CVV no aparece como valor de ninguna columna
     assert "4242" in values  # solo se guardan los últimos 4
+
+
+def test_validation_errors_never_echo_card_data():
+    """Regresión: el 422 de FastAPI incluye `input`; no debe reenviar tarjeta ni CVV."""
+    both = client.post("/api/appointments", json=_payload(payment=CARD, use_saved_payment=True))
+    assert both.status_code == 422
+    bad_month = client.post("/api/appointments", json=_payload(payment={**CARD, "exp_month": 13}))
+    assert bad_month.status_code == 422
+    for r in (both, bad_month):
+        flat = r.text.replace(" ", "")
+        assert "4242424242424242" not in flat
+        assert '"cvv"' not in r.text and "123" not in r.text
