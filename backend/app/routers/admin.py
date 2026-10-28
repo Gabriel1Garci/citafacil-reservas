@@ -7,7 +7,12 @@ from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
+from datetime import timedelta
+
 from .. import crud, schemas
+from ..config import settings
+from ..forecast import build_forecast, daily_counts
+from ..utils import local_now
 from ..auth import require_admin
 from ..database import get_db
 from ..reminders import run_reminders
@@ -83,3 +88,26 @@ def get_stats(db: Session = Depends(get_db)):
 @router.post("/reminders/run", summary="Enviar recordatorios ahora")
 def trigger_reminders(db: Session = Depends(get_db)):
     return run_reminders(db)
+
+
+# ---------- Previsión de demanda ----------
+HISTORY_WEEKS = 12
+
+
+@router.get("/forecast", response_model=schemas.ForecastOut, summary="Previsión de demanda")
+def get_forecast(
+    days: int = Query(14, ge=1, le=90, description="Días a prever"),
+    db: Session = Depends(get_db),
+):
+    """Histórico semanal, promedio por día de la semana y previsión con sugerencia de precio."""
+    today = local_now().date()
+    counts = daily_counts(db, today - timedelta(weeks=HISTORY_WEEKS), today + timedelta(days=days))
+    capacity = (settings.close_hour - settings.open_hour) * 60 // settings.slot_interval_minutes
+    return build_forecast(
+        counts,
+        today=today,
+        horizon_days=days,
+        history_weeks=HISTORY_WEEKS,
+        capacity=capacity,
+        closed_weekdays=settings.closed_weekdays_set,
+    )

@@ -165,5 +165,39 @@ class CalendarOut(BaseModel):
     days: list[CalendarDay]
 
 
+class HistoryWeek(BaseModel):
+    week_start: str
+    count: int
+    partial: bool
+
+
+class WeekdayAvg(BaseModel):
+    weekday: int
+    label: str
+    avg: float
+    closed: bool
+
+
+class ForecastDay(BaseModel):
+    date: str
+    weekday: str
+    expected: float
+    booked: int
+    capacity: int
+    utilization: float
+    level: str  # high | normal | low | closed
+    price_change_pct: int
+
+
+class ForecastOut(BaseModel):
+    history_weeks: int
+    capacity_per_day: int
+    trend_factor: float
+    history_weekly: list[HistoryWeek]
+    by_weekday: list[WeekdayAvg]
+    forecast: list[ForecastDay]
+    recommendations: list[str]
+
+
 class MessageOut(BaseModel):
     detail: str
