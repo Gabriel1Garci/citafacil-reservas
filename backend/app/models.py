@@ -44,6 +44,8 @@ class Appointment(Base):
     status = Column(String(20), nullable=False, default=STATUS_PENDING)
     notes = Column(String(300), nullable=False, default="")
     reminder_sent = Column(Boolean, nullable=False, default=False)
+    # Código que el cliente usa para cancelar (nullable: citas anteriores a US4)
+    cancel_code = Column(String(12), unique=True, index=True, nullable=True)
     created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
 
     service = relationship("Service", back_populates="appointments")

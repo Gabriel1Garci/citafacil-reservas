@@ -67,8 +67,18 @@ class AppointmentOut(BaseModel):
     status: str
     notes: str
     reminder_sent: bool
+    cancel_code: Optional[str] = None
     created_at: datetime
     service: Optional[ServiceOut] = None
+
+
+class CancelRequest(BaseModel):
+    code: str = Field(..., min_length=4, max_length=12, description="Código de cancelación")
+
+    @field_validator("code")
+    @classmethod
+    def _normalize(cls, v: str) -> str:
+        return v.strip().upper()
 
 
 class AppointmentStatusUpdate(BaseModel):

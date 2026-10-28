@@ -11,7 +11,7 @@ from fastapi.responses import RedirectResponse
 
 from . import __version__
 from .config import settings
-from .database import Base, engine
+from .database import ensure_schema
 from .reminders import run_reminders_job
 from .routers import admin, public, scores
 
@@ -27,7 +27,7 @@ scheduler: BackgroundScheduler | None = None
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # --- startup ---
-    Base.metadata.create_all(bind=engine)
+    ensure_schema()
 
     global scheduler
     scheduler = BackgroundScheduler(timezone=settings.business_timezone)

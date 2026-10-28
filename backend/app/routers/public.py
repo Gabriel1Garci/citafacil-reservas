@@ -6,11 +6,12 @@ from datetime import date, timedelta
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
-from .. import crud, schemas
+from .. import crud, models, schemas
 from ..availability import generate_slots, is_slot_free, month_calendar
 from ..config import settings
 from ..database import get_db
 from ..notifications import confirmation_message, send_whatsapp
+from ..utils import local_now
 
 router = APIRouter(prefix="/api", tags=["Público"])
 
@@ -78,7 +79,23 @@ def create_appointment(payload: schemas.AppointmentCreate, db: Session = Depends
 
     # Confirmación por WhatsApp (real si Twilio está configurado; simulada si no)
     body = confirmation_message(
-        settings.business_name, appt.customer_name, service.name, appt.start_at
+        settings.business_name, appt.customer_name, service.name, appt.start_at, appt.cancel_code
     )
     send_whatsapp(appt.customer_phone, body)
     return appt
+
+
+@router.post(
+    "/appointments/cancel",
+    response_model=schemas.AppointmentOut,
+    summary="Cancelar una reserva con su código",
+)
+def cancel_appointment(payload: schemas.CancelRequest, db: Session = Depends(get_db)):
+    appt = crud.get_by_cancel_code(db, payload.code)
+    if not appt:
+        raise HTTPException(status_code=404, detail="Código de cancelación no válido.")
+    if appt.status == models.STATUS_CANCELLED:
+        raise HTTPException(status_code=409, detail="Esta reserva ya estaba cancelada.")
+    if appt.status == models.STATUS_DONE or appt.start_at <= local_now():
+        raise HTTPException(status_code=409, detail="No se puede cancelar una cita que ya pasó.")
+    return crud.set_status(db, appt, models.STATUS_CANCELLED)
