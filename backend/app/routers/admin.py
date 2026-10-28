@@ -4,13 +4,14 @@ from __future__ import annotations
 from datetime import date
 from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Response
 from sqlalchemy.orm import Session
 
 from datetime import timedelta
 
 from .. import crud, schemas
 from ..config import settings
+from ..export import appointments_to_csv
 from ..forecast import build_forecast, daily_counts
 from ..utils import local_now
 from ..auth import require_admin
@@ -60,6 +61,22 @@ def all_appointments(
     db: Session = Depends(get_db),
 ):
     return crud.list_appointments(db, status=status, day=day)
+
+
+@router.get("/appointments/export.csv", summary="Exportar reservas a CSV")
+def export_appointments_csv(
+    status: Optional[str] = Query(None, description="Filtrar por estado"),
+    day: Optional[date] = Query(None, alias="date", description="Filtrar por fecha YYYY-MM-DD"),
+    db: Session = Depends(get_db),
+):
+    """Mismos filtros que el listado. Las celdas se neutralizan contra inyección de fórmulas."""
+    data = appointments_to_csv(crud.list_appointments(db, status=status, day=day))
+    filename = f"reservas_{local_now():%Y%m%d_%H%M}.csv"
+    return Response(
+        content=data,
+        media_type="text/csv; charset=utf-8",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
 
 
 @router.patch("/appointments/{appt_id}", response_model=schemas.AppointmentOut, summary="Cambiar estado")
