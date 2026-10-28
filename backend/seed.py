@@ -35,9 +35,9 @@ def run() -> None:
             for s in SERVICES:
                 db.add(models.Service(**s))
             db.commit()
-            print(f"✔ Sembrados {len(SERVICES)} servicios.")
+            print(f"OK: Sembrados {len(SERVICES)} servicios.")
         else:
-            print("• Ya existen servicios; no se vuelve a sembrar.")
+            print("- Ya existen servicios; no se vuelve a sembrar.")
 
         if db.query(models.Appointment).count() == 0:
             corte = db.query(models.Service).filter_by(name="Corte de pelo").first()
@@ -59,9 +59,9 @@ def run() -> None:
                     )
                 )
             db.commit()
-            print("✔ Citas de ejemplo creadas.")
+            print("OK: Citas de ejemplo creadas.")
         else:
-            print("• Ya existen citas; no se crean ejemplos.")
+            print("- Ya existen citas; no se crean ejemplos.")
     finally:
         db.close()
 
