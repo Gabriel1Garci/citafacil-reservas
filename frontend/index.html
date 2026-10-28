@@ -73,6 +73,24 @@
     font-family:'JetBrains Mono',monospace;font-size:.9rem;transition:all .16s}
   .slot:hover{border-color:var(--accent);color:var(--accent-2)}
   .slot.sel{background:var(--grad);border-color:transparent;color:#fff}
+  .cal-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px}
+  .cal-head h3{font-size:1rem}
+  .cal-nav{background:var(--bg-soft);border:1.5px solid var(--border);color:var(--text);border-radius:10px;width:38px;height:38px;cursor:pointer}
+  .cal-nav:disabled{opacity:.35;cursor:not-allowed}
+  .cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:6px}
+  .cal-dow{text-align:center;color:var(--muted);font-size:.75rem;font-weight:700;padding:4px 0}
+  .cal-day{aspect-ratio:1;border-radius:10px;border:1.5px solid var(--border);background:var(--bg-soft);color:var(--text);
+    display:flex;flex-direction:column;align-items:center;justify-content:center;font:inherit;font-weight:700;font-size:.92rem;cursor:pointer;transition:all .16s}
+  .cal-day small{font-size:.62rem;font-weight:600;color:var(--muted)}
+  .cal-day.available{border-color:rgba(34,197,94,.55)} .cal-day.available:hover{border-color:var(--ok);transform:translateY(-2px)}
+  .cal-day.available small{color:var(--ok)}
+  .cal-day.full{background:rgba(248,113,113,.10);border-color:rgba(248,113,113,.35);color:#fecaca;cursor:not-allowed}
+  .cal-day.full small{color:var(--err)}
+  .cal-day.closed,.cal-day.past{opacity:.35;cursor:not-allowed;background:transparent}
+  .cal-day.sel{background:var(--grad);border-color:transparent;color:#fff} .cal-day.sel small{color:#fff}
+  .cal-day.blank{visibility:hidden}
+  .cal-legend{display:flex;gap:14px;flex-wrap:wrap;margin:12px 0 18px;font-size:.8rem;color:var(--muted)}
+  .cal-legend i{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:6px;vertical-align:middle}
   .empty{color:var(--muted);font-size:.9rem;padding:10px 0;display:flex;align-items:center;gap:9px}
 
   .btn{display:inline-flex;align-items:center;gap:9px;padding:13px 24px;border-radius:12px;font-weight:700;font-size:.98rem;
@@ -134,8 +152,18 @@
     <div class="card disabled" id="cardWhen">
       <h2><i class="fa-solid fa-calendar-day"></i> Elige día y hora</h2>
       <p class="hint" id="whenHint">Primero selecciona un servicio.</p>
-      <div class="field"><label for="dateInput">Fecha</label><input type="date" id="dateInput" /></div>
-      <div><label>Horarios disponibles</label><div class="slots" id="slots"><div class="empty">Elige una fecha.</div></div></div>
+      <div class="cal-head">
+        <button class="cal-nav" id="calPrev" aria-label="Mes anterior"><i class="fa-solid fa-chevron-left"></i></button>
+        <h3 id="calTitle">-</h3>
+        <button class="cal-nav" id="calNext" aria-label="Mes siguiente"><i class="fa-solid fa-chevron-right"></i></button>
+      </div>
+      <div class="cal-grid" id="calGrid"></div>
+      <div class="cal-legend">
+        <span><i style="background:var(--ok)"></i>Disponible</span>
+        <span><i style="background:var(--err)"></i>Completo</span>
+        <span><i style="background:var(--border)"></i>Cerrado / pasado</span>
+      </div>
+      <div><label>Horarios disponibles</label><div class="slots" id="slots"><div class="empty">Elige un día disponible del calendario.</div></div></div>
     </div>
 
     <!-- Paso 3: Datos -->
@@ -250,8 +278,6 @@
       }
     }catch(e){ /* usa defaults */ }
 
-    // fecha mínima = hoy
-    $("dateInput").min = new Date().toISOString().slice(0,10);
   }
 
   function renderServices(){
@@ -273,30 +299,81 @@
     el.classList.add("sel");
     $("whenHint").textContent = `${s.name} · ${s.duration_min} min · ${money(s.price)}`;
     setStep(2);
-    if($("dateInput").value) loadSlots();
+    state.date = null;
+    $("slots").innerHTML = '<div class="empty">Elige un día disponible del calendario.</div>';
+    loadCalendar();
     $("cardWhen").scrollIntoView({behavior:"smooth", block:"center"});
   }
 
-  $("dateInput").addEventListener("change", loadSlots);
+  /* ====== Calendario dinámico (US2) ====== */
+  const MONTHS_NAV_LIMIT = 6; // meses hacia adelante que se pueden consultar
+  const today = new Date();
+  let calYear = today.getFullYear(), calMonth = today.getMonth(); // mes 0-11
+  let calReq = 0;
+
+  const pad = n => String(n).padStart(2,"0");
+  const monthKey = (y,m) => `${y}-${pad(m+1)}`;
+
+  async function loadCalendar(){
+    if(!state.service) return;
+    const grid = $("calGrid");
+    const myReq = ++calReq;
+    const first = new Date(calYear, calMonth, 1);
+    const title = first.toLocaleDateString("es-CL",{month:"long"});
+    $("calTitle").textContent = title.charAt(0).toUpperCase() + title.slice(1) + " " + calYear;
+    $("calPrev").disabled = (calYear===today.getFullYear() && calMonth===today.getMonth());
+    const limit = new Date(today.getFullYear(), today.getMonth()+MONTHS_NAV_LIMIT, 1);
+    $("calNext").disabled = first >= limit;
+    grid.innerHTML = '<div class="empty" style="grid-column:1/-1"><span class="spin"></span> Cargando calendario…</div>';
+    try{
+      const data = await api(`/api/calendar?service_id=${state.service.id}&month=${monthKey(calYear,calMonth)}`, null, 65000);
+      if(myReq !== calReq) return;
+      renderCalendar(data.days);
+    }catch(e){
+      if(myReq !== calReq) return;
+      grid.innerHTML = '<div class="empty" style="grid-column:1/-1">Error cargando el calendario. Prueba de nuevo.</div>';
+    }
+  }
+
+  function renderCalendar(days){
+    const grid = $("calGrid");
+    grid.innerHTML = "";
+    ["L","M","M","J","V","S","D"].forEach(d=>{
+      const el = document.createElement("div"); el.className="cal-dow"; el.textContent=d; grid.appendChild(el);
+    });
+    const offset = (new Date(calYear, calMonth, 1).getDay() + 6) % 7; // lunes = 0
+    for(let i=0;i<offset;i++){ const b=document.createElement("div"); b.className="cal-day blank"; grid.appendChild(b); }
+    days.forEach(d=>{
+      const el = document.createElement("button");
+      el.type = "button";
+      el.className = "cal-day " + d.status + (d.date===state.date ? " sel" : "");
+      el.dataset.date = d.date; el.dataset.status = d.status;
+      const label = d.status==="available" ? `${d.free_slots} libres` : (d.status==="full" ? "completo" : "");
+      el.innerHTML = `${Number(d.date.slice(8))}${label ? `<small>${label}</small>` : ""}`;
+      if(d.status!=="available") el.disabled = true;
+      else el.onclick = ()=>selectDate(d.date);
+      grid.appendChild(el);
+    });
+  }
+
+  function selectDate(date){
+    state.date = date; state.time = null;
+    document.querySelectorAll(".cal-day").forEach(x=>x.classList.toggle("sel", x.dataset.date===date));
+    loadSlots();
+  }
+
+  $("calPrev").onclick = ()=>{ calMonth--; if(calMonth<0){calMonth=11;calYear--;} loadCalendar(); };
+  $("calNext").onclick = ()=>{ calMonth++; if(calMonth>11){calMonth=0;calYear++;} loadCalendar(); };
 
   // Token incremental: solo la última petición pinta el resultado (evita que una
-  // respuesta vieja pise a la nueva cuando se teclea la fecha dígito a dígito).
+  // respuesta vieja pise a la nueva si el usuario cambia de día rápidamente).
   let slotsReq = 0;
 
   async function loadSlots(){
-    if(!state.service) return;
-    const date = $("dateInput").value;
-    // Ignorar fechas incompletas/ inválidas o anteriores a hoy (al teclear se generan
-    // años intermedios como 0002, 0020… que no deben consultarse).
-    if(!/^\d{4}-\d{2}-\d{2}$/.test(date)) return;
-    const min = $("dateInput").min;
+    if(!state.service || !state.date) return;
+    const date = state.date;
     const box = $("slots");
-    if(min && date < min){
-      box.innerHTML = '<div class="empty">Elige una fecha desde hoy en adelante.</div>';
-      return;
-    }
-
-    state.date = date; state.time = null;
+    state.time = null;
     const myReq = ++slotsReq;
     box.innerHTML = '<div class="empty"><span class="spin"></span> Buscando horarios…</div>';
     try{
@@ -347,7 +424,7 @@
     }catch(e){
       msg.className="msg err";
       msg.textContent = e.message==="Error 409" ? "Ese horario ya fue tomado. Elige otro." : e.message;
-      loadSlots();
+      loadCalendar(); loadSlots();
     }finally{ btn.disabled=false; btn.innerHTML='<i class="fa-solid fa-check"></i> Confirmar reserva'; }
   });
 

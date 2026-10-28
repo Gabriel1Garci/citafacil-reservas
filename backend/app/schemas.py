@@ -102,5 +102,16 @@ class StatsOut(BaseModel):
     upcoming: int
 
 
+class CalendarDay(BaseModel):
+    date: str
+    status: str  # available | full | closed | past
+    free_slots: int
+
+
+class CalendarOut(BaseModel):
+    month: str
+    days: list[CalendarDay]
+
+
 class MessageOut(BaseModel):
     detail: str
