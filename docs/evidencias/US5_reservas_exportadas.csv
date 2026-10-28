@@ -1,0 +1,8 @@
+﻿ID,Fecha,Hora,Cliente,Teléfono,Servicio,Precio,Estado,Pago,Tarjeta (últimos 4),Notas,Creada
+4,2026-10-31,12:00,Gabriel García,+56977771111,Corte de pelo,8000,pending,paid,4242,,2026-10-28 00:06
+6,2026-10-31,12:30,Gabriel García,+56977771111,Corte de pelo,8000,pending,paid,4242,,2026-10-28 00:07
+8,2026-10-31,13:00,Gabriel García,+56977771111,Corte de pelo,8000,pending,paid,4242,,2026-10-28 00:07
+5,2026-10-31,14:30,Gabriel García,+56977771111,Corte de pelo,8000,pending,paid,4242,,2026-10-28 00:06
+7,2026-10-31,15:30,Gabriel García,+56977771111,Corte de pelo,8000,pending,paid,4242,,2026-10-28 00:07
+9,2026-10-31,16:30,Gabriel García,+56977771111,Corte de pelo,8000,pending,paid,4242,,2026-10-28 00:07
+863,2026-11-03,17:30,"'=HYPERLINK(""http://malo.example"",""clic"")",+56944443333,Corte de pelo,8000,pending,unpaid,,'@SUM(1+1),2026-10-28 03:49

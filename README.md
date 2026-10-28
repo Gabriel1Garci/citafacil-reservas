@@ -1,4 +1,6 @@
-# 📅 CitaFácil — Sistema de reservas con recordatorios por WhatsApp
+# CitaFácil — Sistema de reservas con recordatorios por WhatsApp
+
+> **Proyecto 1 · Tópicos Especiales II (Feature Sprint con IA).** Este repositorio es una copia de [gianca675/citafacil](https://github.com/gianca675/citafacil) sobre la que se desarrollaron 5 historias de usuario con una herramienta de IA de escritorio, trabajando los roles Developer / Reviewer / QA. Ver [`docs/AI_DEVELOPMENT_LOG.md`](docs/AI_DEVELOPMENT_LOG.md).
 
 Aplicación **full-stack** para que pequeños negocios (barberías, peluquerías, clínicas, consultoras…) reciban reservas en línea y envíen **recordatorios automáticos por WhatsApp**.
 
@@ -8,7 +10,7 @@ Backend en **Python (FastAPI)** con base de datos **SQL**, API REST **documentad
 
 ---
 
-## ✨ Características
+## Características
 
 - **Reserva en 3 pasos**: el cliente elige servicio → día → hora libre, y deja su nombre y celular.
 - **Sin choques de horario**: el motor de disponibilidad calcula los espacios libres según la duración de cada servicio y **evita el doble-booking**.
@@ -20,7 +22,7 @@ Backend en **Python (FastAPI)** con base de datos **SQL**, API REST **documentad
 
 ---
 
-## 🧱 Stack técnico
+## Stack técnico
 
 | Capa        | Tecnología |
 |-------------|------------|
@@ -34,7 +36,7 @@ Backend en **Python (FastAPI)** con base de datos **SQL**, API REST **documentad
 
 ---
 
-## 🚀 Demo
+## Demo
 
 - **Reservas (frontend):** _añade aquí tu URL de GitHub Pages_
 - **Panel admin:** `.../admin.html`
@@ -42,7 +44,7 @@ Backend en **Python (FastAPI)** con base de datos **SQL**, API REST **documentad
 
 ---
 
-## 📂 Estructura
+## Estructura
 
 ```
 citafacil/
@@ -73,7 +75,7 @@ citafacil/
 
 ---
 
-## 🖥️ Ejecutar en local
+## Ejecutar en local
 
 Requisitos: Python 3.10+.
 
@@ -95,7 +97,7 @@ python -m uvicorn app.main:app --reload
 
 ---
 
-## 🔌 Endpoints principales
+## Endpoints principales
 
 | Método | Ruta | Descripción | Auth |
 |--------|------|-------------|------|
@@ -103,18 +105,43 @@ python -m uvicorn app.main:app --reload
 | GET  | `/api/services` | Servicios activos | — |
 | GET  | `/api/availability?service_id=&date=` | Horarios libres de un día | — |
 | POST | `/api/appointments` | Crear una reserva | — |
-| GET  | `/api/admin/appointments` | Listar reservas (filtros) | 🔒 |
-| PATCH| `/api/admin/appointments/{id}` | Cambiar estado | 🔒 |
-| DELETE | `/api/admin/appointments/{id}` | Eliminar reserva | 🔒 |
-| GET/POST/PUT/DELETE | `/api/admin/services` | Gestionar servicios | 🔒 |
-| GET  | `/api/admin/stats` | Estadísticas | 🔒 |
-| POST | `/api/admin/reminders/run` | Enviar recordatorios ahora | 🔒 |
+| GET  | `/api/admin/appointments` | Listar reservas (filtros) | Admin |
+| PATCH| `/api/admin/appointments/{id}` | Cambiar estado | Admin |
+| DELETE | `/api/admin/appointments/{id}` | Eliminar reserva | Admin |
+| GET/POST/PUT/DELETE | `/api/admin/services` | Gestionar servicios | Admin |
+| GET  | `/api/admin/stats` | Estadísticas | Admin |
+| POST | `/api/admin/reminders/run` | Enviar recordatorios ahora | Admin |
 
-🔒 = requiere la cabecera `X-Admin-Token`.
+### Endpoints agregados en el Feature Sprint
+
+| Historia | Método | Ruta | Descripción | Auth |
+|---|---|---|---|---|
+| US2 | GET | `/api/calendar?service_id=&month=YYYY-MM` | Estado de cada día del mes: `available`, `full`, `closed`, `past` | — |
+| US1 | POST | `/api/appointments` | Ahora acepta `payment` (tarjeta nueva, opcional `save`) o `use_saved_payment` | `X-Customer-Token` si usa tarjeta guardada |
+| US1 | GET / DELETE | `/api/customers/me` | Ver u olvidar mis datos guardados (solo marca y últimos 4 dígitos) | `X-Customer-Token` |
+| US4 | POST | `/api/appointments/cancel` | Cancelar con el código recibido al reservar | — |
+| US3 | GET | `/api/admin/forecast?days=` | Histórico, promedio semanal y previsión de demanda con sugerencia de precio | Admin |
+| US5 | GET | `/api/admin/appointments/export.csv` | Exporta las reservas (mismos filtros que el listado) | Admin |
+
+Admin = requiere la cabecera `X-Admin-Token`.
+
+### Pagos simulados (US1)
+
+La pasarela es **simulada** (`backend/app/payments.py`): valida Luhn, vencimiento y CVV, y solo conserva marca + últimos 4 dígitos.
+Tarjetas de prueba: `4242 4242 4242 4242` (Visa, aprobada), `5555 5555 5555 4444` (Mastercard, aprobada),
+`4000 0000 0000 0002` (siempre rechazada). Usa cualquier vencimiento futuro y un CVV de 3 dígitos (4 para Amex).
+
+### Datos de demostración para la previsión (US3)
+
+```bash
+cd backend
+python seed.py            # servicios y citas de ejemplo
+python seed_history.py    # 12 semanas de historial sintético para los gráficos
+```
 
 ---
 
-## ⚙️ Configuración (variables de entorno)
+## Configuración (variables de entorno)
 
 | Variable | Por defecto | Descripción |
 |----------|-------------|-------------|
@@ -130,7 +157,7 @@ python -m uvicorn app.main:app --reload
 
 ---
 
-## ☁️ Desplegar en Render (gratis)
+## Desplegar en Render (gratis)
 
 1. Sube este proyecto a un repositorio de GitHub.
 2. En [Render](https://render.com): **New + → Blueprint** y conecta el repo. Render leerá `render.yaml` y creará la API + una base de datos PostgreSQL.
@@ -142,7 +169,7 @@ El `ADMIN_TOKEN` se genera automáticamente; puedes verlo en **Environment** den
 
 ---
 
-## 💬 Activar WhatsApp real (Twilio)
+## Activar WhatsApp real (Twilio)
 
 1. Crea una cuenta en [twilio.com](https://www.twilio.com) y activa el **WhatsApp Sandbox** (Messaging → Try it out → Send a WhatsApp message).
 2. Copia tu **Account SID**, **Auth Token** y el número del sandbox (`whatsapp:+14155238886`).
@@ -153,24 +180,30 @@ Sin estas variables, la app funciona igual en **modo demo** (registra los mensaj
 
 ---
 
-## 🧪 Tests
+## Tests
 
 ```bash
 cd backend
 python -m pytest
 ```
 
-Cubren la validación de teléfono, el cálculo de disponibilidad, la prevención de doble-booking y la autenticación del panel.
+Son **69 tests** (la línea base tenía 6). Cubren validación de teléfono, disponibilidad, doble-booking, autenticación, y las nuevas
+funciones: calendario, cancelación con código, migración de esquema, pagos simulados y reserva rápida (incluida la verificación de que
+nunca se guarda el número completo ni el CVV), previsión de demanda, exportación CSV con neutralización de fórmulas, escape de HTML (XSS)
+y los scripts de siembra en consolas Windows.
+
+> **Python 3.14 / Windows:** las versiones fijadas en `requirements.txt` están pensadas para Python 3.12 (el del `Dockerfile`).
+> Con una versión más nueva de Python instala las dependencias sin fijar versión: `pip install fastapi "uvicorn[standard]" sqlalchemy pydantic pydantic-settings python-dotenv apscheduler httpx tzdata pytest twilio`.
 
 ---
 
-## 🛣️ Posibles mejoras
+## Posibles mejoras
 
-Notificaciones por correo, soporte multi-sucursal o multi-profesional, pagos en línea, recordatorio configurable por servicio, e internacionalización.
+*Rate limiting* en la cancelación y el perfil, pasarela de pago real con campos alojados por el proveedor, notificaciones por correo, soporte multi-sucursal o multi-profesional, pagos en línea, recordatorio configurable por servicio, e internacionalización.
 
 ---
 
-## 👤 Autor
+## Autor
 
 **Giancarlos Alfaro** — Desarrollador de Software
 [Portafolio](https://gianca675.github.io) · [GitHub](https://github.com/gianca675) · [LinkedIn](https://www.linkedin.com/in/giancarlos-alfaro-echeverr%C3%ADa-9ab57b2a8)
