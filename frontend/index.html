@@ -271,6 +271,8 @@
   }
 
   const money = n => "$" + (n||0).toLocaleString("es-CL");
+  // Escapa texto antes de insertarlo con innerHTML (evita XSS con datos que escribe el usuario).
+  const esc = v => String(v == null ? "" : v).replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 
   // fetch con timeout opcional (AbortController) para no colgarse en un arranque en frío.
   async function api(path, opts, timeoutMs){
@@ -351,7 +353,7 @@
     state.services.forEach(s=>{
       const el = document.createElement("div");
       el.className = "svc";
-      el.innerHTML = `<div class="n">${s.name}</div><div class="meta"><span><i class="fa-regular fa-clock"></i> ${s.duration_min} min</span><span class="price">${money(s.price)}</span></div>`;
+      el.innerHTML = `<div class="n">${esc(s.name)}</div><div class="meta"><span><i class="fa-regular fa-clock"></i> ${s.duration_min} min</span><span class="price">${money(s.price)}</span></div>`;
       el.onclick = ()=>selectService(s, el);
       g.appendChild(el);
     });
@@ -463,7 +465,7 @@
     b.classList.add("sel");
     const d = new Date(state.date+"T"+t);
     const fecha = d.toLocaleDateString("es-CL",{weekday:"long",day:"2-digit",month:"long"});
-    $("summary").innerHTML = `<b>${state.service.name}</b> · ${fecha} a las <b>${t}</b> · ${money(state.service.price)}`;
+    $("summary").innerHTML = `<b>${esc(state.service.name)}</b> · ${esc(fecha)} a las <b>${esc(t)}</b> · ${money(state.service.price)}`;
     setStep(3);
     $("cardWho").scrollIntoView({behavior:"smooth", block:"center"});
   }
@@ -566,9 +568,9 @@
       $("doneCode").textContent = appt.cancel_code || "";
       const d=new Date(state.date+"T"+state.time);
       const fecha=d.toLocaleDateString("es-CL",{weekday:"long",day:"2-digit",month:"long"});
-      const pay = appt.payment_status==="paid" ? `<br>Pago de <b>${money(appt.paid_amount)}</b> con tarjeta •••• ${appt.payment_last4}.` : "";
+      const pay = appt.payment_status==="paid" ? `<br>Pago de <b>${money(appt.paid_amount)}</b> con tarjeta •••• ${esc(appt.payment_last4)}.` : "";
       const saved = appt.customer_token ? "<br>Guardamos tu tarjeta (solo marca y últimos 4 dígitos) para tu próxima reserva." : "";
-      $("doneMsg").innerHTML=`Te esperamos el <b>${fecha}</b> a las <b>${state.time}</b>.${pay}${saved}<br>Te enviamos la confirmación por WhatsApp.`;
+      $("doneMsg").innerHTML=`Te esperamos el <b>${esc(fecha)}</b> a las <b>${esc(state.time)}</b>.${pay}${saved}<br>Te enviamos la confirmación por WhatsApp.`;
       ["cardSvc","cardWhen","cardWho"].forEach(id=>$(id).style.display="none");
       document.querySelector(".steps").style.display="none";
       $("cardDone").style.display="block";

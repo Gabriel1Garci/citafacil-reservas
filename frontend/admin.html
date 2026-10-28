@@ -204,6 +204,8 @@
 
   const $ = id => document.getElementById(id);
   const money = n => "$" + (n||0).toLocaleString("es-CL");
+  // Escapa texto antes de insertarlo con innerHTML (evita XSS con datos que escribe el usuario).
+  const esc = v => String(v == null ? "" : v).replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
   let TOKEN = localStorage.getItem("citafacil_token") || "";
 
   function toast(msg, kind){ const t=$("toast"); t.textContent=msg; t.className="toast "+(kind||""); t.style.display="block"; setTimeout(()=>t.style.display="none", 2800); }
@@ -249,7 +251,6 @@
 
 
   /* ====== PREVISIÓN DE DEMANDA (US3) ====== */
-  const esc = v => String(v).replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
   const LEVEL_COLOR = {high:"#f87171", normal:"#22c55e", low:"#3b82f6", closed:"#9aa7b4"};
   const LEVEL_LABEL = {high:"Alta", normal:"Normal", low:"Baja", closed:"Cerrado"};
 
@@ -359,9 +360,9 @@
       list.forEach(a=>{
         const tr=document.createElement("tr");
         const svc = a.service ? a.service.name : ("#"+a.service_id);
-        tr.innerHTML = `<td class="mono">${fmtDT(a.start_at)}</td><td>${a.customer_name}</td>
-          <td class="mono">${a.customer_phone}</td><td>${svc}</td>
-          <td><span class="badge b-${a.status}">${STLABEL[a.status]||a.status}</span></td>
+        tr.innerHTML = `<td class="mono">${fmtDT(a.start_at)}</td><td>${esc(a.customer_name)}</td>
+          <td class="mono">${esc(a.customer_phone)}</td><td>${esc(svc)}</td>
+          <td><span class="badge b-${esc(a.status)}">${esc(STLABEL[a.status]||a.status)}</span></td>
           <td><div class="actions">
             <button class="ico ok" title="Confirmar" onclick="setStatus(${a.id},'confirmed')"><i class="fa-solid fa-check"></i></button>
             <button class="ico ok" title="Marcar realizada" onclick="setStatus(${a.id},'done')"><i class="fa-solid fa-flag-checkered"></i></button>
@@ -370,7 +371,7 @@
           </div></td>`;
         body.appendChild(tr);
       });
-    }catch(e){ if(e.status===401){logout();return;} body.innerHTML='<tr><td colspan="6" class="empty">Error: '+e.message+'</td></tr>'; }
+    }catch(e){ if(e.status===401){logout();return;} body.innerHTML='<tr><td colspan="6" class="empty">Error: '+esc(e.message)+'</td></tr>'; }
   }
 
   async function setStatus(id, status){
@@ -392,14 +393,14 @@
       box.innerHTML="";
       list.forEach(s=>{
         const row=document.createElement("div"); row.className="svc-row"+(s.active?"":" inactive");
-        row.innerHTML=`<div class="info"><b>${s.name}</b><span style="color:var(--muted)"><i class="fa-regular fa-clock"></i> ${s.duration_min} min</span><span class="price">${money(s.price)}</span>${s.active?"":'<span class="badge b-cancelled">inactivo</span>'}</div>
+        row.innerHTML=`<div class="info"><b>${esc(s.name)}</b><span style="color:var(--muted)"><i class="fa-regular fa-clock"></i> ${s.duration_min} min</span><span class="price">${money(s.price)}</span>${s.active?"":'<span class="badge b-cancelled">inactivo</span>'}</div>
           <div class="actions">
             <button class="ico warn" title="${s.active?'Desactivar':'Activar'}" onclick="toggleSvc(${s.id},${!s.active})"><i class="fa-solid fa-power-off"></i></button>
             <button class="ico del" title="Eliminar" onclick="delSvc(${s.id})"><i class="fa-solid fa-trash"></i></button>
           </div>`;
         box.appendChild(row);
       });
-    }catch(e){ if(e.status===401){logout();return;} box.innerHTML='<div class="empty">Error: '+e.message+'</div>'; }
+    }catch(e){ if(e.status===401){logout();return;} box.innerHTML='<div class="empty">Error: '+esc(e.message)+'</div>'; }
   }
   async function toggleSvc(id, active){
     try{ await api(`/api/admin/services/${id}`,{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify({active})}); loadServices(); }
