@@ -13,7 +13,7 @@ from . import __version__
 from .config import settings
 from .database import ensure_schema
 from .reminders import run_reminders_job
-from .routers import admin, public, scores
+from .routers import admin, customers, public, scores
 
 logging.basicConfig(
     level=logging.INFO,
@@ -69,6 +69,7 @@ app.add_middleware(
 )
 
 app.include_router(public.router)
+app.include_router(customers.router)
 app.include_router(admin.router)
 app.include_router(scores.router)
 

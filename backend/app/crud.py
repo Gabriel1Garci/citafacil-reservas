@@ -1,6 +1,7 @@
 """Operaciones de base de datos (Create/Read/Update/Delete)."""
 from __future__ import annotations
 
+import hashlib
 import secrets
 from datetime import date, datetime, time, timedelta
 from typing import Optional
@@ -60,8 +61,47 @@ def get_by_cancel_code(db: Session, code: str) -> Optional[models.Appointment]:
     return db.query(models.Appointment).filter(models.Appointment.cancel_code == code).first()
 
 
+def _hash_token(token: str) -> str:
+    return hashlib.sha256(token.encode("utf-8")).hexdigest()
+
+
+def create_customer(db: Session, name: str, phone: str, holder: str, card) -> tuple[models.Customer, str]:
+    """Crea el perfil con su tarjeta (solo datos no sensibles). Devuelve (perfil, token en claro)."""
+    token = secrets.token_urlsafe(32)
+    customer = models.Customer(name=name.strip(), phone=phone, token_hash=_hash_token(token))
+    customer.payment = models.PaymentMethod(
+        holder=holder.strip(), brand=card.brand, last4=card.last4,
+        exp_month=card.exp_month, exp_year=card.exp_year,
+    )
+    db.add(customer)
+    db.flush()
+    return customer, token
+
+
+def get_customer_by_token(db: Session, token: Optional[str]) -> Optional[models.Customer]:
+    if not token:
+        return None
+    return db.query(models.Customer).filter(models.Customer.token_hash == _hash_token(token)).first()
+
+
+def delete_customer(db: Session, customer: models.Customer) -> None:
+    """Olvida los datos guardados; las citas se conservan sin vínculo al perfil."""
+    db.query(models.Appointment).filter(models.Appointment.customer_id == customer.id).update(
+        {models.Appointment.customer_id: None}
+    )
+    db.delete(customer)
+    db.commit()
+
+
 def create_appointment(
-    db: Session, data: schemas.AppointmentCreate, service: models.Service, end_at: datetime
+    db: Session,
+    data: schemas.AppointmentCreate,
+    service: models.Service,
+    end_at: datetime,
+    customer: Optional[models.Customer] = None,
+    payment_status: str = models.PAYMENT_UNPAID,
+    paid_amount: Optional[int] = None,
+    payment_last4: Optional[str] = None,
 ) -> models.Appointment:
     obj = models.Appointment(
         customer_name=data.customer_name.strip(),
@@ -72,6 +112,10 @@ def create_appointment(
         notes=(data.notes or "").strip(),
         status=models.STATUS_PENDING,
         cancel_code=new_cancel_code(db),
+        customer_id=customer.id if customer else None,
+        payment_status=payment_status,
+        paid_amount=paid_amount,
+        payment_last4=payment_last4,
     )
     db.add(obj)
     db.commit()
