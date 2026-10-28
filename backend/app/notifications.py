@@ -25,9 +25,9 @@ def confirmation_message(
 ) -> str:
     cancel = f"\n\nSi no puedes asistir, cancela en la web con este código: {cancel_code}" if cancel_code else ""
     return (
-        f"¡Hola {customer_name}! 👋 Tu reserva en {business} quedó registrada:\n"
-        f"✂️ {service_name}\n"
-        f"🗓️ {_fmt_dt(start_at)}\n\n"
+        f"¡Hola {customer_name}! Tu reserva en {business} quedó registrada:\n"
+        f"Servicio: {service_name}\n"
+        f"Fecha: {_fmt_dt(start_at)}\n\n"
         f"Te enviaremos un recordatorio antes. ¡Te esperamos!"
         f"{cancel}"
     )
@@ -36,8 +36,8 @@ def confirmation_message(
 def reminder_message(business: str, customer_name: str, service_name: str, start_at: datetime) -> str:
     return (
         f"Hola {customer_name}, te recordamos tu cita en {business}:\n"
-        f"✂️ {service_name}\n"
-        f"🗓️ {_fmt_dt(start_at)}\n\n"
+        f"Servicio: {service_name}\n"
+        f"Fecha: {_fmt_dt(start_at)}\n\n"
         f"Si no puedes asistir, responde este mensaje. ¡Gracias!"
     )
 
