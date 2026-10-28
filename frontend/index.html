@@ -96,6 +96,17 @@
   .cancel-link{color:var(--muted);font-size:.9rem;font-weight:600;cursor:pointer;background:none;border:none;font-family:inherit}
   .cancel-link:hover{color:var(--accent-2)}
   .msg.ok{display:block;background:rgba(34,197,94,.12);border:1px solid rgba(34,197,94,.3);color:#bbf7d0}
+  .quick{background:rgba(34,211,238,.07);border:1.5px solid rgba(34,211,238,.35);border-radius:12px;padding:14px 16px;margin-bottom:16px}
+  .quick-title{font-weight:800;margin-bottom:4px;color:var(--accent-2)}
+  .quick p{color:var(--text);font-size:.92rem;margin-bottom:8px}
+  .quick-links{display:flex;gap:18px;flex-wrap:wrap}
+  .pay-box{border:1px solid var(--border);border-radius:12px;padding:16px;margin-bottom:16px;background:var(--bg-soft)}
+  .pay-title{font-weight:700;margin-bottom:12px;display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+  .pay-sim{font-size:.72rem;font-weight:600;color:var(--muted)}
+  .pay-row{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+  label.check{display:flex;gap:10px;align-items:flex-start;color:var(--text);font-size:.88rem;margin:0;cursor:pointer}
+  label.check input{width:auto;margin-top:4px}
+  label.check small{display:block;color:var(--muted);font-weight:500}
   .empty{color:var(--muted);font-size:.9rem;padding:10px 0;display:flex;align-items:center;gap:9px}
 
   .btn{display:inline-flex;align-items:center;gap:9px;padding:13px 24px;border-radius:12px;font-weight:700;font-size:.98rem;
@@ -176,13 +187,38 @@
 
     <!-- Paso 3: Datos -->
     <div class="card disabled" id="cardWho">
-      <h2><i class="fa-solid fa-user"></i> Tus datos</h2>
+      <h2><i class="fa-solid fa-user"></i> Tus datos y pago</h2>
       <p class="hint">Para confirmarte la reserva por WhatsApp.</p>
       <div class="summary" id="summary"></div>
-      <div class="field"><label for="name">Nombre y apellido</label><input id="name" placeholder="Ej: Camila Rojas" autocomplete="name" /></div>
-      <div class="field"><label for="phone">Celular (WhatsApp)</label><input id="phone" placeholder="+56 9 XXXX XXXX" inputmode="tel" autocomplete="tel" /></div>
+
+      <!-- Reserva rápida (US1): cliente recurrente con tarjeta guardada -->
+      <div id="quickBox" class="quick" style="display:none">
+        <div class="quick-title"><i class="fa-solid fa-bolt"></i> ¡Hola de nuevo, <span id="quickName"></span>!</div>
+        <p>Pagaremos con tu tarjeta guardada <b class="mono" id="quickCard"></b>. No necesitas escribir nada más.</p>
+        <div class="quick-links">
+          <button type="button" class="cancel-link" id="useOtherCard">Usar otra tarjeta</button>
+          <button type="button" class="cancel-link" id="forgetMe">Olvidar mis datos</button>
+        </div>
+      </div>
+
+      <div id="newFields">
+        <div class="field"><label for="name">Nombre y apellido</label><input id="name" placeholder="Ej: Camila Rojas" autocomplete="name" /></div>
+        <div class="field"><label for="phone">Celular (WhatsApp)</label><input id="phone" placeholder="+56 9 XXXX XXXX" inputmode="tel" autocomplete="tel" /></div>
+        <div class="pay-box">
+          <div class="pay-title"><i class="fa-regular fa-credit-card"></i> Pago <span class="pay-sim">simulado · tarjeta de prueba 4242 4242 4242 4242</span></div>
+          <div class="field"><label for="cardHolder">Titular de la tarjeta</label><input id="cardHolder" placeholder="Como aparece en la tarjeta" autocomplete="cc-name" /></div>
+          <div class="field"><label for="cardNumber">Número de tarjeta</label><input id="cardNumber" class="mono" placeholder="4242 4242 4242 4242" inputmode="numeric" autocomplete="cc-number" /></div>
+          <div class="pay-row">
+            <div class="field"><label for="cardExp">Vence (MM/AA)</label><input id="cardExp" class="mono" placeholder="12/29" inputmode="numeric" autocomplete="cc-exp" maxlength="7" /></div>
+            <div class="field"><label for="cardCvv">CVV</label><input id="cardCvv" class="mono" placeholder="123" inputmode="numeric" autocomplete="cc-csc" maxlength="4" type="password" /></div>
+          </div>
+          <label class="check"><input type="checkbox" id="saveCard" /> <span>Guardar mis datos para próximas reservas <small>(solo marca y últimos 4 dígitos; nunca el número completo ni el CVV)</small></span></label>
+          <button type="button" class="cancel-link" id="useSavedCard" style="display:none"></button>
+        </div>
+      </div>
+
       <div class="field"><label for="notes">Nota (opcional)</label><input id="notes" placeholder="Algo que debamos saber" /></div>
-      <button class="btn" id="confirmBtn"><i class="fa-solid fa-check"></i> Confirmar reserva</button>
+      <button class="btn" id="confirmBtn"><i class="fa-solid fa-check"></i> Pagar y confirmar</button>
       <div class="msg" id="formMsg"></div>
     </div>
 
@@ -242,7 +278,13 @@
     const t = timeoutMs ? setTimeout(()=>ctrl.abort(), timeoutMs) : null;
     try{
       const r = await fetch(API + path, Object.assign({}, opts||{}, {signal: ctrl.signal}));
-      if(!r.ok){ let d; try{d=await r.json()}catch(e){}; throw new Error((d&&d.detail) || ("Error "+r.status)); }
+      if(!r.ok){
+        let d; try{d=await r.json()}catch(e){}
+        const det = d && d.detail;
+        const err = new Error(typeof det === "string" ? det : ("Error "+r.status));
+        err.status = r.status;   // permite distinguir 409 (horario tomado) de otros errores
+        throw err;
+      }
       return r.status===204 ? null : r.json();
     } finally { if(t) clearTimeout(t); }
   }
@@ -426,29 +468,118 @@
     $("cardWho").scrollIntoView({behavior:"smooth", block:"center"});
   }
 
+  /* ====== Reserva rápida con datos guardados (US1) ====== */
+  const TOKEN_KEY = "citafacil_customer_token";
+  state.profile = null;     // perfil del cliente recurrente (si hay token válido)
+  state.quick = false;      // true = reservar con la tarjeta guardada
+
+  const authHeaders = () => {
+    const t = localStorage.getItem(TOKEN_KEY);
+    return t ? {"X-Customer-Token": t} : {};
+  };
+
+  async function loadProfile(){
+    if(!localStorage.getItem(TOKEN_KEY)) return;
+    try{
+      state.profile = await api("/api/customers/me", {headers: authHeaders()}, 20000);
+      state.quick = !!(state.profile && state.profile.payment);
+    }catch(e){
+      // Token inválido o borrado en el servidor: se descarta. Si es un fallo de red, se conserva.
+      if(e.status===401) localStorage.removeItem(TOKEN_KEY);
+    }
+    renderWho();
+  }
+
+  function renderWho(){
+    const p = state.profile, quick = state.quick && p && p.payment;
+    $("quickBox").style.display = quick ? "block" : "none";
+    $("newFields").style.display = quick ? "none" : "block";
+    const sc = $("useSavedCard");
+    sc.style.display = (p && p.payment && !quick) ? "inline" : "none";
+    if(p && p.payment) sc.textContent = `Usar mi tarjeta guardada ${p.payment.brand.toUpperCase()} •••• ${p.payment.last4}`;
+    if(quick){
+      $("quickName").textContent = p.name.split(" ")[0];
+      $("quickCard").textContent = `${p.payment.brand.toUpperCase()} •••• ${p.payment.last4}`;
+      $("confirmBtn").innerHTML = `<i class="fa-solid fa-bolt"></i> Reservar con mi tarjeta`;
+    }else{
+      if(p){ $("name").value = $("name").value || p.name; $("phone").value = $("phone").value || p.phone; }
+      $("confirmBtn").innerHTML = `<i class="fa-solid fa-check"></i> Pagar y confirmar`;
+    }
+  }
+
+  $("useOtherCard").onclick = ()=>{ state.quick = false; renderWho(); };
+  $("useSavedCard").onclick = ()=>{ state.quick = true; renderWho(); };
+  $("forgetMe").onclick = async ()=>{
+    if(!confirm("¿Olvidar tu tarjeta y tus datos guardados en este navegador?")) return;
+    try{ await api("/api/customers/me", {method:"DELETE", headers: authHeaders()}, 20000); }catch(e){ /* ya no existía */ }
+    localStorage.removeItem(TOKEN_KEY);
+    state.profile = null; state.quick = false;
+    renderWho();
+  };
+
+  // Formato amigable al teclear: 4242 4242 4242 4242 y MM/AA
+  $("cardNumber").addEventListener("input", e=>{
+    const d = e.target.value.replace(/\D/g,"").slice(0,19);
+    e.target.value = d.replace(/(.{4})/g,"$1 ").trim();
+  });
+  $("cardExp").addEventListener("input", e=>{
+    let d = e.target.value.replace(/\D/g,"").slice(0,4);
+    if(d.length>=3) d = d.slice(0,2) + "/" + d.slice(2);
+    e.target.value = d;
+  });
+
+  function parseExp(v){
+    const m = /^(\d{2})\/(\d{2}|\d{4})$/.exec(v.trim());
+    return m ? {month:+m[1], year:+m[2]} : null;
+  }
+
   $("confirmBtn").addEventListener("click", async ()=>{
-    const name = $("name").value.trim(), phone = $("phone").value.trim();
     const msg = $("formMsg"); msg.className="msg";
+    const quick = state.quick && state.profile && state.profile.payment;
+    const name = quick ? state.profile.name : $("name").value.trim();
+    const phone = quick ? state.profile.phone : $("phone").value.trim();
     if(name.length<2 || !phone){ msg.className="msg err"; msg.textContent="Completa tu nombre y celular."; return; }
     if(!state.service || !state.date || !state.time){ msg.className="msg err"; msg.textContent="Elige servicio, día y hora."; return; }
-    const btn=$("confirmBtn"); btn.disabled=true; btn.innerHTML='<span class="spin"></span> Confirmando…';
+
+    const payload = {customer_name:name, customer_phone:phone, service_id:state.service.id,
+      start_at:`${state.date}T${state.time}:00`, notes:$("notes").value.trim()};
+    const headers = {"Content-Type":"application/json"};
+    if(quick){
+      payload.use_saved_payment = true;
+      Object.assign(headers, authHeaders());
+    }else{
+      const exp = parseExp($("cardExp").value);
+      const holder = $("cardHolder").value.trim();
+      if(!holder || !$("cardNumber").value.trim() || !exp || !$("cardCvv").value.trim()){
+        msg.className="msg err"; msg.textContent="Completa los datos de la tarjeta (vencimiento MM/AA)."; return;
+      }
+      payload.payment = {holder, card_number:$("cardNumber").value, exp_month:exp.month, exp_year:exp.year,
+        cvv:$("cardCvv").value, save:$("saveCard").checked};
+    }
+
+    const btn=$("confirmBtn"), btnHtml=btn.innerHTML; btn.disabled=true; btn.innerHTML='<span class="spin"></span> Procesando pago…';
     try{
-      const payload={customer_name:name, customer_phone:phone, service_id:state.service.id,
-        start_at:`${state.date}T${state.time}:00`, notes:$("notes").value.trim()};
-      const appt = await api("/api/appointments",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(payload)}, 65000);
+      const appt = await api("/api/appointments",{method:"POST",headers,body:JSON.stringify(payload)}, 65000);
+      if(appt.customer_token){ localStorage.setItem(TOKEN_KEY, appt.customer_token); }
+      // Los datos sensibles no deben quedar en el DOM.
+      ["cardNumber","cardCvv","cardExp","cardHolder"].forEach(id=>$(id).value="");
       $("doneCode").textContent = appt.cancel_code || "";
       const d=new Date(state.date+"T"+state.time);
       const fecha=d.toLocaleDateString("es-CL",{weekday:"long",day:"2-digit",month:"long"});
-      $("doneMsg").innerHTML=`Te esperamos el <b>${fecha}</b> a las <b>${state.time}</b>.<br>Te enviamos la confirmación por WhatsApp a ${phone}.`;
+      const pay = appt.payment_status==="paid" ? `<br>Pago de <b>${money(appt.paid_amount)}</b> con tarjeta •••• ${appt.payment_last4}.` : "";
+      const saved = appt.customer_token ? "<br>Guardamos tu tarjeta (solo marca y últimos 4 dígitos) para tu próxima reserva." : "";
+      $("doneMsg").innerHTML=`Te esperamos el <b>${fecha}</b> a las <b>${state.time}</b>.${pay}${saved}<br>Te enviamos la confirmación por WhatsApp.`;
       ["cardSvc","cardWhen","cardWho"].forEach(id=>$(id).style.display="none");
       document.querySelector(".steps").style.display="none";
       $("cardDone").style.display="block";
       $("cardDone").scrollIntoView({behavior:"smooth",block:"center"});
     }catch(e){
       msg.className="msg err";
-      msg.textContent = e.message==="Error 409" ? "Ese horario ya fue tomado. Elige otro." : e.message;
-      loadCalendar(); loadSlots();
-    }finally{ btn.disabled=false; btn.innerHTML='<i class="fa-solid fa-check"></i> Confirmar reserva'; }
+      msg.textContent = e.status===409 ? "Ese horario ya fue tomado. Elige otro." : e.message;
+      if(e.status===401){ localStorage.removeItem(TOKEN_KEY); state.profile=null; state.quick=false; renderWho(); }
+      // Solo si el horario se ocupó hay que refrescar; un pago rechazado conserva la selección.
+      if(e.status===409){ loadCalendar(); loadSlots(); }
+    }finally{ btn.disabled=false; btn.innerHTML = state.quick ? `<i class="fa-solid fa-bolt"></i> Reservar con mi tarjeta` : `<i class="fa-solid fa-check"></i> Pagar y confirmar`; }
   });
 
   /* ====== Cancelar reserva (US4) ====== */
@@ -475,6 +606,7 @@
   });
 
   init();
+  loadProfile();
 </script>
 </body>
 </html>

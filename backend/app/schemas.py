@@ -4,7 +4,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Optional
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, SecretStr, field_validator, model_validator
 
 from .models import VALID_STATUSES
 from .utils import PhoneError, normalize_cl_phone, to_local_naive
@@ -34,6 +34,31 @@ class ServiceOut(ServiceBase):
     id: int
 
 
+# ---------- Pago ----------
+class PaymentIn(BaseModel):
+    """Datos de tarjeta que envía el formulario de pago (se validan y se descartan)."""
+
+    holder: str = Field(..., min_length=2, max_length=80)
+    card_number: SecretStr
+    exp_month: int = Field(..., ge=1, le=12)
+    exp_year: int = Field(..., ge=0, le=9999)
+    cvv: SecretStr
+    save: bool = Field(False, description="Guardar marca y últimos 4 para próximas reservas")
+
+
+class PaymentSummary(BaseModel):
+    brand: str
+    last4: str
+    exp_month: int
+    exp_year: int
+
+
+class CustomerOut(BaseModel):
+    name: str
+    phone: str
+    payment: Optional[PaymentSummary] = None
+
+
 # ---------- Citas ----------
 class AppointmentCreate(BaseModel):
     customer_name: str = Field(..., min_length=2, max_length=120)
@@ -41,6 +66,14 @@ class AppointmentCreate(BaseModel):
     service_id: int
     start_at: datetime = Field(..., description="Inicio de la cita (ISO 8601)")
     notes: str = Field("", max_length=300)
+    payment: Optional[PaymentIn] = None
+    use_saved_payment: bool = Field(False, description="Cobrar a la tarjeta guardada (requiere X-Customer-Token)")
+
+    @model_validator(mode="after")
+    def _one_payment_source(self):
+        if self.payment and self.use_saved_payment:
+            raise ValueError("Usa tarjeta nueva o tarjeta guardada, no ambas.")
+        return self
 
     @field_validator("customer_phone")
     @classmethod
@@ -68,8 +101,17 @@ class AppointmentOut(BaseModel):
     notes: str
     reminder_sent: bool
     cancel_code: Optional[str] = None
+    payment_status: Optional[str] = None
+    paid_amount: Optional[int] = None
+    payment_last4: Optional[str] = None
     created_at: datetime
     service: Optional[ServiceOut] = None
+
+
+class BookingOut(AppointmentOut):
+    """Respuesta al reservar; `customer_token` solo viene cuando se creó un perfil."""
+
+    customer_token: Optional[str] = None
 
 
 class CancelRequest(BaseModel):

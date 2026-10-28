@@ -3,7 +3,9 @@ from __future__ import annotations
 
 from datetime import date, timedelta
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from typing import Optional
+
+from fastapi import APIRouter, Depends, Header, HTTPException, Query
 from sqlalchemy.orm import Session
 
 from .. import crud, models, schemas
@@ -11,6 +13,7 @@ from ..availability import generate_slots, is_slot_free, month_calendar
 from ..config import settings
 from ..database import get_db
 from ..notifications import confirmation_message, send_whatsapp
+from ..payments import CardInfo, PaymentDeclined, PaymentError, charge, ensure_not_expired, validate_card
 from ..utils import local_now
 
 router = APIRouter(prefix="/api", tags=["Público"])
@@ -61,11 +64,15 @@ def get_calendar(
 
 @router.post(
     "/appointments",
-    response_model=schemas.AppointmentOut,
+    response_model=schemas.BookingOut,
     status_code=201,
-    summary="Crear una reserva",
+    summary="Crear una reserva (con pago opcional)",
 )
-def create_appointment(payload: schemas.AppointmentCreate, db: Session = Depends(get_db)):
+def create_appointment(
+    payload: schemas.AppointmentCreate,
+    db: Session = Depends(get_db),
+    x_customer_token: Optional[str] = Header(None, alias="X-Customer-Token"),
+):
     service = crud.get_service(db, payload.service_id)
     if not service or not service.active:
         raise HTTPException(status_code=404, detail="Servicio no encontrado.")
@@ -75,14 +82,61 @@ def create_appointment(payload: schemas.AppointmentCreate, db: Session = Depends
             detail="Ese horario ya no está disponible. Por favor elige otro.",
         )
     end_at = payload.start_at + timedelta(minutes=service.duration_min)
-    appt = crud.create_appointment(db, payload, service, end_at)
+
+    # --- Pago: tarjeta nueva, tarjeta guardada o sin pago (retrocompatible) ---
+    customer = None
+    card: Optional[CardInfo] = None
+    if payload.use_saved_payment:
+        customer = crud.get_customer_by_token(db, x_customer_token)
+        if not customer or not customer.payment:
+            raise HTTPException(status_code=401, detail="No encontramos tus datos guardados.")
+        pm = customer.payment
+        card = CardInfo(pm.brand, pm.last4, pm.exp_month, pm.exp_year)
+        try:
+            ensure_not_expired(card)
+        except PaymentError as e:
+            raise HTTPException(status_code=422, detail=str(e))
+    elif payload.payment:
+        p = payload.payment
+        try:
+            card = validate_card(
+                p.card_number.get_secret_value(), p.exp_month, p.exp_year, p.cvv.get_secret_value()
+            )
+        except PaymentError as e:
+            raise HTTPException(status_code=422, detail=str(e))
+
+    payment_status, paid_amount, last4 = models.PAYMENT_UNPAID, None, None
+    if card:
+        if service.price <= 0:
+            payment_status, paid_amount, last4 = models.PAYMENT_FREE, 0, card.last4
+        else:
+            try:
+                charge(card, service.price)
+            except PaymentDeclined as e:
+                raise HTTPException(status_code=402, detail=str(e))
+            except PaymentError as e:
+                raise HTTPException(status_code=422, detail=str(e))
+            payment_status, paid_amount, last4 = models.PAYMENT_PAID, service.price, card.last4
+
+    token = None
+    if card and payload.payment and payload.payment.save:
+        customer, token = crud.create_customer(
+            db, payload.customer_name, payload.customer_phone, payload.payment.holder, card
+        )
+
+    appt = crud.create_appointment(
+        db, payload, service, end_at,
+        customer=customer, payment_status=payment_status, paid_amount=paid_amount, payment_last4=last4,
+    )
 
     # Confirmación por WhatsApp (real si Twilio está configurado; simulada si no)
     body = confirmation_message(
         settings.business_name, appt.customer_name, service.name, appt.start_at, appt.cancel_code
     )
     send_whatsapp(appt.customer_phone, body)
-    return appt
+    result = schemas.BookingOut.model_validate(appt)
+    result.customer_token = token
+    return result
 
 
 @router.post(
